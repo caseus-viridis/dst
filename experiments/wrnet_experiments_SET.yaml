@@ -1,0 +1,6 @@
+##SET experiments
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml  --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.8 --widen-factor 2 --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --stop-rewire-epoch 190 --rewire --rewire-fraction 0.07 --job-idx 0
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml  --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.9 --widen-factor 2 --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --stop-rewire-epoch 190 --rewire --rewire-fraction 0.138 --job-idx 1
+

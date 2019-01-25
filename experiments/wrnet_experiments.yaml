@@ -1,0 +1,62 @@
+##Baseline dense model training
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.0 --widen-factor 2 --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --job-idx 0
+
+###Pruning from full model experiments
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file prune_schedule_wrnet.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.0 --widen-factor 2 --resume ./runs/cifar10_WideResNet_0 --prune-target-sparsity-fc 0.0 --prune-target-sparsity-conv 0.9 --prune-iterations 20 --post-prune-epochs 10 --prune --start-pruning-after-epoch 0 --prune --sub-kernel-granularity --job-idx 1
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file prune_schedule_wrnet.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.0 --widen-factor 2 --resume ./runs/cifar10_WideResNet_0 --prune-target-sparsity-fc 0.0 --prune-target-sparsity-conv 0.8 --prune-iterations 20 --post-prune-epochs 10 --prune --start-pruning-after-epoch 0 --prune --sub-kernel-granularity  --job-idx 2 
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file prune_schedule_wrnet.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.0 --widen-factor 2 --resume ./runs/cifar10_WideResNet_0 --prune-target-sparsity-fc 0.0 --prune-target-sparsity-conv 0.7 --prune-iterations 20 --post-prune-epochs 10 --prune --start-pruning-after-epoch 0 --prune --sub-kernel-granularity --job-idx 3
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file prune_schedule_wrnet.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.0 --widen-factor 2 --resume ./runs/cifar10_WideResNet_0 --prune-target-sparsity-fc 0.0 --prune-target-sparsity-conv 0.6 --prune-iterations 20 --post-prune-epochs 10 --prune --start-pruning-after-epoch 0 --prune --sub-kernel-granularity --job-idx 4
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file prune_schedule_wrnet.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.0 --widen-factor 2 --resume ./runs/cifar10_WideResNet_0 --prune-target-sparsity-fc 0.0 --prune-target-sparsity-conv 0.5 --prune-iterations 20 --post-prune-epochs 10 --prune --start-pruning-after-epoch 0 --prune --sub-kernel-granularity --job-idx 5
+
+
+
+##parameter re-allocation experiments
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.9 --widen-factor 2 --rewire --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --threshold-prune --n-realloc-params 20000 --grow-across-layers --stop-rewire-epoch 190 --job-idx 6
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.8 --widen-factor 2 --rewire --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --threshold-prune --n-realloc-params 20000 --grow-across-layers --stop-rewire-epoch 190 --job-idx 7
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.7 --widen-factor 2 --rewire --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --threshold-prune --n-realloc-params 20000 --grow-across-layers --stop-rewire-epoch 190 --job-idx 8
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.6 --widen-factor 2 --rewire --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --threshold-prune --n-realloc-params 20000 --grow-across-layers --stop-rewire-epoch 190 --job-idx 9
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.5 --widen-factor 2 --rewire --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --threshold-prune --n-realloc-params 20000 --grow-across-layers --stop-rewire-epoch 190 --job-idx 10
+
+###widen_factor 2,static
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.9 --widen-factor 2 --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --job-idx 11
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.8 --widen-factor 2  --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --job-idx 12
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.7 --widen-factor 2  --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --job-idx 13
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.6 --widen-factor 2  --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --job-idx 14
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.5 --widen-factor 2  --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --job-idx 15
+
+###widen_factor 2,tied
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.9 --widen-factor 2 --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --tied --job-idx 16
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.8 --widen-factor 2  --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --tied --job-idx 17
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.7 --widen-factor 2  --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --tied --job-idx 18
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.6 --widen-factor 2  --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --tied --job-idx 19
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.5 --widen-factor 2  --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --tied --job-idx 20
+
+
+
+###equivalent size thin and dense network
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.0 --widen-factor 0.66  --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --job-idx 21
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.0 --widen-factor 0.9  --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --job-idx 22
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.0 --widen-factor 1.11  --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --job-idx 23
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.0 --widen-factor 1.27  --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --job-idx 24
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.0 --widen-factor 1.42  --sub-kernel-granularity --epochs 200 --weight-decay 5.0e-4 --job-idx 25
+

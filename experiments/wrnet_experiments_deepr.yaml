@@ -1,0 +1,5 @@
+##DeepR expriments. DeepR parameters and temperature schedule previously found through a hyper-parameter sweep. Extra experiments in response to anonymous reviwer
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml  --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.8 --widen-factor 2 --sub-kernel-granularity --epochs 200 --weight-decay 0.0 --stop-rewire-epoch 190 --DeepR --DeepR_eta 0.01 --L1-loss-coeff 1.0e-4 --job-idx 0
+
+  - python variable_sized_nws.py --model cifar10_WideResNet --schedule-file wrnet_schedule.yaml  --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.9 --widen-factor 2 --sub-kernel-granularity --epochs 200 --weight-decay 0.0 --stop-rewire-epoch 190 --DeepR --DeepR_eta 0.01  --L1-loss-coeff 1.0e-4 --job-idx 1

@@ -1,0 +1,39 @@
+
+##Baseline dense model training
+  - python variable_sized_nws.py --model mnist_mlp --schedule-file mnist_schedule.yaml --initial-sparsity-fc 0.00 --job-idx 0
+
+
+###Pruning from full model experiments
+  - python variable_sized_nws.py  --model mnist_mlp --schedule-file prune_schedule_mnist.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.0  --resume ./runs/mnist_mlp_0 --prune-target-sparsity-fc 0.99  --prune-iterations 10 --post-prune-epochs 20 --prune --start-pruning-after-epoch 1 --prune  --job-idx 1
+  - python variable_sized_nws.py  --model mnist_mlp  --schedule-file prune_schedule_mnist.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.0  --resume ./runs/mnist_mlp_0 --prune-target-sparsity-fc 0.98  --prune-iterations 10 --post-prune-epochs 20 --prune --start-pruning-after-epoch 1 --prune --job-idx 2
+  - python variable_sized_nws.py  --model mnist_mlp  --schedule-file prune_schedule_mnist.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.0  --resume ./runs/mnist_mlp_0 --prune-target-sparsity-fc 0.97  --prune-iterations 10 --post-prune-epochs 20 --prune --start-pruning-after-epoch 1 --prune --job-idx 3
+  - python variable_sized_nws.py  --model mnist_mlp  --schedule-file prune_schedule_mnist.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.0  --resume ./runs/mnist_mlp_0 --prune-target-sparsity-fc 0.96  --prune-iterations 10 --post-prune-epochs 20 --prune --start-pruning-after-epoch 1 --prune --job-idx 4
+  - python variable_sized_nws.py  --model mnist_mlp  --schedule-file prune_schedule_mnist.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.0  --resume ./runs/mnist_mlp_0 --prune-target-sparsity-fc 0.95  --prune-iterations 10 --post-prune-epochs 20 --prune --start-pruning-after-epoch 1 --prune --job-idx 5
+  - python variable_sized_nws.py  --model mnist_mlp  --schedule-file prune_schedule_mnist.yaml --initial-sparsity-fc 0.00 --initial-sparsity-conv 0.0  --resume ./runs/mnist_mlp_0 --prune-target-sparsity-fc 0.90  --prune-iterations 10 --post-prune-epochs 20 --prune --start-pruning-after-epoch 1 --prune  --job-idx 6
+
+
+
+##parameter re-allocation experiments
+  - python variable_sized_nws.py --model mnist_mlp --schedule-file mnist_schedule.yaml --initial-sparsity-fc 0.99 --rewire --weight-decay 0.0 --L1-loss-coeff 1.0e-4 --threshold-prune --grow-across-layers --stop-rewire-epoch 90 --job-idx 7
+  - python variable_sized_nws.py --model mnist_mlp --schedule-file mnist_schedule.yaml --initial-sparsity-fc 0.98 --rewire --weight-decay 0.0 --L1-loss-coeff 1.0e-4 --threshold-prune --grow-across-layers --stop-rewire-epoch 90 --job-idx 8
+  - python variable_sized_nws.py --model mnist_mlp --schedule-file mnist_schedule.yaml --initial-sparsity-fc 0.97 --rewire --weight-decay 0.0 --L1-loss-coeff 1.0e-4 --threshold-prune --grow-across-layers --stop-rewire-epoch 90 --job-idx 9
+  - python variable_sized_nws.py --model mnist_mlp --schedule-file mnist_schedule.yaml --initial-sparsity-fc 0.96 --rewire --weight-decay 0.0 --L1-loss-coeff 1.0e-4 --threshold-prune --grow-across-layers --stop-rewire-epoch 90 --job-idx 10
+  - python variable_sized_nws.py --model mnist_mlp --schedule-file mnist_schedule.yaml --initial-sparsity-fc 0.95 --rewire --weight-decay 0.0 --L1-loss-coeff 1.0e-4 --threshold-prune --grow-across-layers --stop-rewire-epoch 90 --job-idx 11
+  - python variable_sized_nws.py --model mnist_mlp --schedule-file mnist_schedule.yaml --initial-sparsity-fc 0.90 --rewire --weight-decay 0.0 --L1-loss-coeff 1.0e-4 --threshold-prune --grow-across-layers --stop-rewire-epoch 90 --job-idx 12
+
+##Fixed sparsity experiments
+  - python variable_sized_nws.py --model mnist_mlp --schedule-file mnist_schedule.yaml --initial-sparsity-fc 0.99  --job-idx 13
+  - python variable_sized_nws.py --model mnist_mlp --schedule-file mnist_schedule.yaml --initial-sparsity-fc 0.98  --job-idx 14
+  - python variable_sized_nws.py --model mnist_mlp --schedule-file mnist_schedule.yaml --initial-sparsity-fc 0.97 --job-idx 15
+  - python variable_sized_nws.py --model mnist_mlp --schedule-file mnist_schedule.yaml --initial-sparsity-fc 0.96 --job-idx 16
+  - python variable_sized_nws.py --model mnist_mlp --schedule-file mnist_schedule.yaml --initial-sparsity-fc 0.95 --job-idx 17
+  - python variable_sized_nws.py --model mnist_mlp --schedule-file mnist_schedule.yaml --initial-sparsity-fc 0.90 --job-idx 18
+
+
+##Tied weights experiments
+  - python variable_sized_nws.py --model mnist_mlp --schedule-file mnist_schedule.yaml --initial-sparsity-fc 0.99 --tied  --job-idx 19
+  - python variable_sized_nws.py --model mnist_mlp --schedule-file mnist_schedule.yaml --initial-sparsity-fc 0.98 --tied  --job-idx 20
+  - python variable_sized_nws.py --model mnist_mlp --schedule-file mnist_schedule.yaml --initial-sparsity-fc 0.97 --tied  --job-idx 21
+  - python variable_sized_nws.py --model mnist_mlp --schedule-file mnist_schedule.yaml --initial-sparsity-fc 0.96 --tied  --job-idx 22
+  - python variable_sized_nws.py --model mnist_mlp --schedule-file mnist_schedule.yaml --initial-sparsity-fc 0.95 --tied  --job-idx 23
+  - python variable_sized_nws.py --model mnist_mlp --schedule-file mnist_schedule.yaml --initial-sparsity-fc 0.90 --tied  --job-idx 24
