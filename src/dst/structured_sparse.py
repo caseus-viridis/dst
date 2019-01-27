@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 import numpy as np
-from utils import rand_placement
+from .utils import rand_placement
 
 
 class StructuredDenseParameter(nn.Module):

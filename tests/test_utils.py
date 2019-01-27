@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 import torch 
-from utils import *
+from dst.utils import *
 
 @pytest.mark.parametrize(
     "sz", (

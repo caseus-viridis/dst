@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 import torch
-from structured_sparse import *
+from dst.structured_sparse import *
 
 
 @pytest.mark.parametrize(
