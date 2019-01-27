@@ -3,6 +3,7 @@ import numpy as np
 import torch
 from structured_sparse import *
 
+
 @pytest.mark.parametrize(
     "sz", (
         [16, 64],
