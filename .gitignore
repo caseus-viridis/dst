@@ -107,6 +107,10 @@ venv.bak/
 docker_scripts
 Dockerfile
 
+# osx
+.DS_Store
+._*
+
 # editor
 .vscode
 
