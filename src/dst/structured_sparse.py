@@ -11,8 +11,8 @@ class Grouping(object):
     - Reduction over groups, used to e.g. compute Lp-norm
     - Expansion over groups, used to e.g. set group values to a specified value given a group mask (i.e. group pruning if the value is 0.)
     """
-    def __init__(self, shape):
-        self.shape = torch.Size(shape)
+    def __init__(self, size):
+        self.size = torch.Size(size)
 
     @property
     def num_groups(self):
@@ -94,7 +94,7 @@ class ElementGrouping(Grouping):
         return torch.abs
 
     def group_mask_expand(self, group_mask):
-        return group_mask # need to be reshaped
+        return group_mask.view(self.size)
 
 
 class DimGrouping(Grouping):
@@ -102,7 +102,7 @@ class DimGrouping(Grouping):
     Grouping along certain dimensions
     """
     def __init__(self, size, dim=(0,)):
-        super(DimsGrouping, self).__init__(size)
+        super(DimGrouping, self).__init__(size)
         self.size = size
         self.dim = dim
         self.cdim = tuple(set(range(len(size))) - set(dim))
@@ -140,33 +140,34 @@ class ISSGrouping(Grouping):
 
 
 class StructuredSparseParameter(nn.Module):
-    def __init__(self, dense, groupings=(ElementGrouping,)):
+    def __init__(self, dense, grouping=ElementGrouping):
         super(StructuredSparseParameter, self).__init__()
         assert isinstance(dense, StructuredDenseParameter), "need a StructuredDenseParameter to wrap around"
         self.dense = dense
         self.groups = grouping(self.size)
-        self.group_mask = torch.ones(num_groups)
 
-        self.register_buffer('mask', torch.Tensor(*self.size))
+        self.register_buffer('group_mask', torch.ByteTensor(self.groups.num_groups))
+        self.register_buffer('mask', torch.ByteTensor(*self.size))
         self.compute_mask()
 
     @property
     def size(self):
-        return self.dense.size()
+        return self.dense.shape
 
     def compute_mask(self):
-        return union(f(self.groups)) # just a note
-
-    def forward(self):
-        return self.mask * self.dense
+        return self.groups.group_mask_expand(self.group_mask)
 
     def init_params(self):
         self.dense.init_params()
 
-    def prune_by_threshold(self, threshold):
-        pass
-
+    @property
     def sparsity(self):
+        return self.mask.sum().float() / self.mask.numel()
+
+    def forward(self):
+        return self.dense * self.mask.float()
+
+    def prune_by_threshold(self, threshold):
         pass
 
 
@@ -174,4 +175,6 @@ if __name__=="__main__":
     # par = DenseParameter(torch.rand(8))
     # par = HashedParameter(shape=[8, 8], bank=torch.rand(6), seed=0)
     # gg = DimGrouping((4, 2, 3, 3), dim=1)
-    import ipdb; ipdb.set_trace()
+    # g = ElementGrouping(size=(3, 4))
+    # import ipdb; ipdb.set_trace()
+    pass

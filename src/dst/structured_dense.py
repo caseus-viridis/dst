@@ -66,3 +66,8 @@ class HashedParameter(StructuredDenseParameter):
 
     def init_params(self):
         pass # TODO
+
+
+class LowDisplacementRankParameter(StructuredDenseParameter):
+    pass # TODO
+

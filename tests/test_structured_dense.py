@@ -4,6 +4,7 @@ import torch
 from dst.structured_dense import *
 
 
+# DenseParameter tests
 @pytest.mark.parametrize(
     "sz", (
         [16, 64],
@@ -17,6 +18,7 @@ def test_shape_dof(sz):
     assert par().shape==par.shape
 
 
+# HashedParameter tests
 @pytest.mark.parametrize("sz", ([16, 64], [32, 4, 8, 16]))
 @pytest.mark.parametrize("dof", (2, 16, 128))
 def test_hashed(sz, dof):
@@ -24,3 +26,6 @@ def test_hashed(sz, dof):
     assert par.shape==torch.Size(sz)
     assert par.bank.shape==torch.Size((dof,))
     assert par().shape==par.shape
+
+
+# LowDisplacementRankParameter tests
