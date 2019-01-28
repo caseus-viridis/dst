@@ -22,7 +22,7 @@ def test_shape_dof(sz):
 @pytest.mark.parametrize("sz", ([16, 64], [32, 4, 8, 16]))
 @pytest.mark.parametrize("dof", (2, 16, 128))
 def test_hashed(sz, dof):
-    par = HashedParameter(shape=sz, bank=torch.rand(dof), seed=666)
+    par = HashedParameter(size=sz, bank=torch.rand(dof), seed=666)
     assert par.shape==torch.Size(sz)
     assert par.bank.shape==torch.Size((dof,))
     assert par().shape==par.shape

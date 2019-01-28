@@ -144,25 +144,29 @@ class StructuredSparseParameter(nn.Module):
         super(StructuredSparseParameter, self).__init__()
         assert isinstance(dense, StructuredDenseParameter), "need a StructuredDenseParameter to wrap around"
         self.dense = dense
-        self.groups = grouping(self.size)
+        self.size = self.dense.size
+        self.groups = grouping(self.shape)
 
         self.register_buffer('group_mask', torch.ByteTensor(self.groups.num_groups))
-        self.register_buffer('mask', torch.ByteTensor(*self.size))
-        self.compute_mask()
+        self.register_buffer('mask', torch.ByteTensor(size=self.shape))
+        self.init_params()
 
     @property
-    def size(self):
+    def shape(self):
         return self.dense.shape
 
-    def compute_mask(self):
-        return self.groups.group_mask_expand(self.group_mask)
+    def compute_mask_(self):
+        # NOTE: side effect!
+        self.mask = self.groups.group_mask_expand(self.group_mask)
 
     def init_params(self):
+        self.group_mask.fill_(1)
+        self.compute_mask_()
         self.dense.init_params()
 
     @property
     def sparsity(self):
-        return self.mask.sum().float() / self.mask.numel()
+        return 1. - self.mask.sum().float() / self.mask.numel()
 
     def forward(self):
         return self.dense * self.mask.float()

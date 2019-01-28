@@ -8,18 +8,21 @@ from .utils import rand_placement
 class StructuredDenseParameter(nn.Module):
     r"""
     A structured dense parameter tensor
-        shape: size of the output dense tensor
+        size: size of the output dense tensor
         bank: contains true parameters
         transform: a function reparameterizing bank to a tensor of size size
     """
-    def __init__(self, shape, bank, transform):
+    def __init__(self, size, bank, transform):
         super(StructuredDenseParameter, self).__init__()
-        self.shape = torch.Size(shape)
+        self.shape = torch.Size(size)
         self.bank = nn.Parameter(data=bank)
 
     @property
     def dof(self):
         return self.bank.numel()
+    
+    def size(self):
+        return self.shape
 
     def forward(self):
         dense = self.transform(self.bank)
@@ -40,7 +43,7 @@ class DenseParameter(StructuredDenseParameter):
     def __init__(self, tensor):
         self.transform = lambda x:x
         super(DenseParameter, self).__init__(
-            shape=tensor.size(),
+            size=tensor.size(),
             bank=tensor,
             transform=self.transform
         )
@@ -54,12 +57,12 @@ class HashedParameter(StructuredDenseParameter):
     A dense parameter tensor computed with hashing
     Chen et al. 2015 (http://arxiv.org/abs/1504.04788)
     """
-    def __init__(self, shape, bank, seed=0):
+    def __init__(self, size, bank, seed=0):
         self.transform = lambda x:torch.embedding(
-            bank, rand_placement(shape, bank.numel(), seed=seed)
+            bank, rand_placement(size, bank.numel(), seed=seed)
         )
         super(HashedParameter, self).__init__(
-            shape=shape,
+            size=size,
             bank=bank,
             transform=self.transform
         )

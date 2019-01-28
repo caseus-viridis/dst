@@ -11,3 +11,4 @@ x = StructuredSparseParameter(
     grouping=ElementGrouping
 )
 
+# TODO: write some meaningful tests for sparse parameter tensors, 2D and 4D
