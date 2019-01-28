@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from .structured_dense import StructuredDenseParameter
+from .structured_dense import StructuredDenseParameter, DenseParameter
 
 
 class Grouping(object):
@@ -172,8 +172,17 @@ class StructuredSparseParameter(nn.Module):
         return self.dense * self.mask.float()
 
     def prune_by_threshold(self, threshold):
-        pass
+        raise NotImplementedError # TODO
 
+    def prune_random(self):
+        raise NotImplementedError # TODO
+
+
+# Alias for dumbest sparse parameter tensor
+SparseParameter = lambda t: StructuredSparseParameter(
+    dense=DenseParameter(t), 
+    grouping=ElementGrouping
+)
 
 if __name__=="__main__":
     # par = DenseParameter(torch.rand(8))
