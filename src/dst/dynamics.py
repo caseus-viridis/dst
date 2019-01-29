@@ -20,7 +20,7 @@ def prune_by_threshold(model, threshold, p=1):
 
 def adjust_pruning_threshold(old_threshold, num_pruned, target_num_pruned, tolerance=0.1, gain=2.):
     if (num_pruned/target_num_pruned):
-        
+        pass
     return new_threshold
 
 

@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -10,6 +11,7 @@ class _DSBase(nn.Module):
     r"""
     Base class of a dynamic sparse module
     """
+
     def __init__(self):
         super(_DSBase, self).__init__()
 
@@ -33,7 +35,8 @@ class DSLinear(_DSBase):
     def init_params(self):
         self.weight.init_params()
         if self.bias is not None:
-            fan_in, _ = _calculate_fan_in_and_fan_out_from_size(self.weight.size())
+            fan_in, _ = _calculate_fan_in_and_fan_out_from_size(
+                self.weight.size())
             bound = 1 / math.sqrt(fan_in)
             nn.init.uniform_(self.bias, -bound, bound)
 
@@ -84,7 +87,8 @@ class _DSConvNd(_DSBase):
     def init_params(self):
         self.weight.init_params()
         if self.bias is not None:
-            fan_in, _ = _calculate_fan_in_and_fan_out_from_size(self.weight.size())
+            fan_in, _ = _calculate_fan_in_and_fan_out_from_size(
+                self.weight.size())
             bound = 1 / math.sqrt(fan_in)
             nn.init.uniform_(self.bias, -bound, bound)
 
@@ -121,10 +125,97 @@ class DSConv2d(_DSConvNd):
         stride = torch.nn.modules.utils._pair(stride)
         padding = torch.nn.modules.utils._pair(padding)
         dilation = torch.nn.modules.utils._pair(dilation)
-        super(DSConv2d, self).__init__(in_channels, out_channels, kernel_size,
-                                       stride, padding, dilation, False,
-                                       torch.nn.modules.utils._pair(0), groups, bias)
+        super(DSConv2d,
+              self).__init__(in_channels, out_channels, kernel_size, stride,
+                             padding, dilation, False,
+                             torch.nn.modules.utils._pair(0), groups, bias)
 
     def forward(self, input):
-        return F.conv2d(input, self.weight(), self.bias, self.stride, 
+        return F.conv2d(input, self.weight(), self.bias, self.stride,
                         self.padding, self.dilation, self.groups)
+
+
+class _DSConvTransposeMixin(object):
+    __constants__ = ['stride', 'padding', 'kernel_size', 'dim_size',
+                     'output_padding', 'groups', 'dilation', 'transposed', 'bias']
+    def forward(self, input, output_size=None):
+        # type(Tensor, Optional[List[int]]) -> Tensor
+        output_padding = self._output_padding(input, output_size, self.stride, self.padding, self.kernel_size)
+        func = self._backend.ConvNd(
+            self.stride, self.padding, self.dilation, self.transposed,
+            output_padding, self.groups)
+        if self.bias is None:
+            return func(input, self.weight())
+        else:
+            return func(input, self.weight(), self.bias)
+
+    def _output_padding(self, input, output_size, stride, padding, kernel_size):
+        # type: (Tensor, Optional[List[int]], List[int], List[int], List[int]) -> List[int]
+        if output_size is None:
+            ret = torch.nn.modules.utils._single(
+                self.output_padding)  # converting to list if was not already
+        else:
+            output_size = torch.jit._unwrap_optional(output_size)
+            k = input.dim() - 2
+            if len(output_size) == k + 2:
+                output_size = output_size[2:]
+            if len(output_size) != k:
+                raise ValueError(
+                    "output_size must have {} or {} elements (got {})"
+                    .format(k, k + 2, len(output_size)))
+
+            min_sizes = torch.jit.annotate(List[int], [])
+            max_sizes = torch.jit.annotate(List[int], [])
+            for d in range(k):
+                dim_size = ((input.size(d + 2) - 1) * stride[d] -
+                            2 * padding[d] + kernel_size[d])
+                min_sizes.append(dim_size)
+                max_sizes.append(min_sizes[d] + stride[d] - 1)
+
+            for i in range(len(output_size)):
+                size = output_size[i]
+                min_size = min_sizes[i]
+                max_size = max_sizes[i]
+                if size < min_size or size > max_size:
+                    raise ValueError((
+                        "requested an output size of {}, but valid sizes range "
+                        "from {} to {} (for an input of {})").format(
+                            output_size, min_sizes, max_sizes, input.size()[2:]))
+
+            res = torch.jit.annotate(List[int], [])
+            for d in range(k):
+                res.append(output_size[d] - min_sizes[d])
+
+            ret = res
+        return ret
+
+
+class DSConvTranspose2d(_DSConvTransposeMixin, _DSConvNd):
+    r"""
+    A dynamic sparse version of nn.ConvTranspose2d
+    """
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 kernel_size,
+                 stride=1,
+                 padding=0,
+                 output_padding=0,
+                 groups=1,
+                 bias=True,
+                 dilation=1):
+        kernel_size = torch.nn.modules.utils._pair(kernel_size)
+        stride = torch.nn.modules.utils._pair(stride)
+        padding = torch.nn.modules.utils._pair(padding)
+        dilation = torch.nn.modules.utils._pair(dilation)
+        output_padding = torch.nn.modules.utils._pair(output_padding)
+        super(DSConvTranspose2d, self).__init__(
+            in_channels, out_channels, kernel_size, stride, padding, dilation,
+            True, output_padding, groups, bias)
+
+    def forward(self, input, output_size=None):
+        output_padding = self._output_padding(input, output_size, self.stride,
+                                              self.padding, self.kernel_size)
+        return F.conv_transpose2d(input, self.weight(), self.bias, self.stride,
+                                  self.padding, output_padding, self.groups,
+                                  self.dilation)
