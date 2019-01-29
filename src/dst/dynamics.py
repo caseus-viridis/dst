@@ -13,6 +13,16 @@ def get_sparse_param_stats(model):
     n_dense = n_total - n_sparse
     return n_total, n_dense, n_sparse, n_nonzero, breakdown
 
+def prune_by_threshold(model, threshold, p=1):
+    for _, m in model.named_modules():
+        if isinstance(m, tructuredSparseParameter):
+            m.prune_by_threshold(threshold, p=p)
+
+def adjust_pruning_threshold(old_threshold, num_pruned, target_num_pruned, tolerance=0.1, gain=2.):
+    if (num_pruned/target_num_pruned):
+        
+    return new_threshold
+
 
 class DSNetwork(nn.Module):
     r"""

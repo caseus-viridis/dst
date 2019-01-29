@@ -179,12 +179,15 @@ class StructuredSparseParameter(nn.Module):
         return self.dense.shape
 
     def compute_mask_(self):
-        # NOTE: side effect!
         self.mask = self.groups.group_mask_expand(self.group_mask)
+
+    def compute_group_lp_(self, p=1):
+        self.group_lp = self.groups.group_lp_reduce(p=p)(self.dense())
 
     def init_params(self):
         self.group_mask.fill_(1)
         self.compute_mask_()
+        self.compute_group_lp_()
         self.dense.init_params()
 
     @property
@@ -198,12 +201,16 @@ class StructuredSparseParameter(nn.Module):
     def forward(self):
         return self.dense() * self.mask.float()
 
-    def prune_by_threshold(self, threshold):
-        raise NotImplementedError # TODO
+    def prune_by_threshold(self, threshold, p=1):
+        self.compute_group_lp_(p=p)
+        self.group_mask[self.group_lp<threshold] = 0
+        self.compute_mask_()
+        return 
 
-    def prune_random(self):
-        raise NotImplementedError # TODO
-
+    def prune_by_number(self, num_to_prune, p=1):
+        self.compute_group_lp_(p=p)
+        # TODO
+        self.compute_mask_() 
 
 # Alias for dumbest sparse parameter tensor
 SparseParameter = lambda t: StructuredSparseParameter(
