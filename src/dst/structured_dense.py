@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -49,7 +50,7 @@ class DenseParameter(StructuredDenseParameter):
         )
 
     def init_params(self):
-        pass # TODO
+        nn.init.kaiming_uniform_(self.bank, a=math.sqrt(5))
 
 
 class HashedParameter(StructuredDenseParameter):
@@ -68,7 +69,7 @@ class HashedParameter(StructuredDenseParameter):
         )
 
     def init_params(self):
-        pass # TODO
+        nn.init.kaiming_uniform_(self.bank, a=math.sqrt(5))
 
 
 class LowDisplacementRankParameter(StructuredDenseParameter):

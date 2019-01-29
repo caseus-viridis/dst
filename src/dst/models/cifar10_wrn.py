@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from ..modules import DSConv2d
 
 
 class Flatten(nn.Module):
@@ -13,7 +14,7 @@ class Flatten(nn.Module):
 class Skip(nn.Module):
     def __init__(self, ni=1, no=1, stride=1):
         super(Skip, self).__init__()
-        self.trans = nn.Conv2d(
+        self.trans = DSConv2d(
             ni, no, kernel_size=1, stride=stride,
             bias=False) if ni != no else None
 
@@ -59,7 +60,7 @@ class BNReLUConv(nn.Module):
         super(BNReLUConv, self).__init__()
         self.norm = nn.BatchNorm2d(ni)
         self.nl = nn.ReLU(inplace=True)
-        self.conv = nn.Conv2d(
+        self.conv = DSConv2d(
             ni,
             no,
             kernel_size=kernel_size,
@@ -70,9 +71,7 @@ class BNReLUConv(nn.Module):
 
     def init_parameters(self):
         for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight)
-            elif isinstance(m, nn.BatchNorm2d) and m.affine:
+            if isinstance(m, nn.BatchNorm2d) and m.affine:
                 nn.init.constant_(m.weight, 1.)
                 nn.init.constant_(m.bias, 0.)
                 nn.init.constant_(m.running_mean, 0.)
@@ -115,7 +114,7 @@ class WideResNet(nn.Module):
         ):
         super(WideResNet, self).__init__()
         widths = [int(num_features * width * 2**s) for s in range(num_scales)]
-        self.head = nn.Conv2d(
+        self.head = DSConv2d(
             3, num_features, kernel_size=3, padding=1, bias=False)
         self.body = nn.Sequential(*[
             nn.Sequential(*wide_resnet_group(

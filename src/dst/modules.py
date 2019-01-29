@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import Parameter
 from .structured_sparse import StructuredSparseParameter, SparseParameter
+from .utils import _calculate_fan_in_and_fan_out_from_size
 
 
 class _DSBase(nn.Module):
@@ -32,7 +33,9 @@ class DSLinear(_DSBase):
     def init_params(self):
         self.weight.init_params()
         if self.bias is not None:
-            self.bias.data.zero_()
+            fan_in, _ = _calculate_fan_in_and_fan_out_from_size(self.weight.size())
+            bound = 1 / math.sqrt(fan_in)
+            init.uniform_(self.bias, -bound, bound)
 
     def forward(self, input):
         return F.linear(input, self.weight(), self.bias)
@@ -81,7 +84,9 @@ class _DSConvNd(_DSBase):
     def init_params(self):
         self.weight.init_params()
         if self.bias is not None:
-            self.bias.data.zero_()
+            fan_in, _ = _calculate_fan_in_and_fan_out_from_size(self.weight.size())
+            bound = 1 / math.sqrt(fan_in)
+            init.uniform_(self.bias, -bound, bound)
 
     def extra_repr(self):
         s = ('{in_channels}, {out_channels}, kernel_size={kernel_size}'
