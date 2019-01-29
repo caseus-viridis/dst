@@ -35,7 +35,7 @@ class DSLinear(_DSBase):
         if self.bias is not None:
             fan_in, _ = _calculate_fan_in_and_fan_out_from_size(self.weight.size())
             bound = 1 / math.sqrt(fan_in)
-            init.uniform_(self.bias, -bound, bound)
+            nn.init.uniform_(self.bias, -bound, bound)
 
     def forward(self, input):
         return F.linear(input, self.weight(), self.bias)
@@ -86,7 +86,7 @@ class _DSConvNd(_DSBase):
         if self.bias is not None:
             fan_in, _ = _calculate_fan_in_and_fan_out_from_size(self.weight.size())
             bound = 1 / math.sqrt(fan_in)
-            init.uniform_(self.bias, -bound, bound)
+            nn.init.uniform_(self.bias, -bound, bound)
 
     def extra_repr(self):
         s = ('{in_channels}, {out_channels}, kernel_size={kernel_size}'

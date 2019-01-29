@@ -14,7 +14,7 @@ class Flatten(nn.Module):
 class Skip(nn.Module):
     def __init__(self, ni=1, no=1, stride=1):
         super(Skip, self).__init__()
-        self.trans = DSConv2d(
+        self.trans = nn.Conv2d(
             ni, no, kernel_size=1, stride=stride,
             bias=False) if ni != no else None
 
@@ -130,5 +130,4 @@ class WideResNet(nn.Module):
         return self.tail(self.body(self.head(x)))
 
 
-def net():
-    return WideResNet()
+net = lambda width: WideResNet(width=width)

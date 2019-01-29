@@ -97,6 +97,26 @@ class ElementGrouping(Grouping):
         return group_mask.view(self.size)
 
 
+class BlockGrouping(Grouping):
+    r"""
+    Block grouping
+    """
+    def __init__(self, size, block_size=1):
+        super(BlockGrouping, self).__init__(size)
+        self.size = size
+        self.block_size = block_size
+
+    @property
+    def num_groups(self):
+        return np.prod(self.size)
+
+    def group_lp_reduce(self, p=1):
+        return torch.abs
+
+    def group_mask_expand(self, group_mask):
+        return group_mask.view(self.size)
+
+
 class DimGrouping(Grouping):
     r"""
     Grouping along certain dimensions
@@ -140,6 +160,9 @@ class ISSGrouping(Grouping):
 
 
 class StructuredSparseParameter(nn.Module):
+    r"""
+    Most general sparse parameter: a structured dense tensor masked by a structured mask
+    """
     def __init__(self, dense, grouping=ElementGrouping):
         super(StructuredSparseParameter, self).__init__()
         assert isinstance(dense, StructuredDenseParameter), "need a StructuredDenseParameter to wrap around"
@@ -166,7 +189,11 @@ class StructuredSparseParameter(nn.Module):
 
     @property
     def sparsity(self):
-        return 1. - self.mask.sum().float() / self.mask.numel()
+        n_nonzero, n_total = self.param_count()
+        return 1. - n_nonzero.float() / n_total
+
+    def param_count(self):
+        return int(self.mask.sum()), self.mask.numel()
 
     def forward(self):
         return self.dense() * self.mask.float()

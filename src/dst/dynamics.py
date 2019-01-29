@@ -1,5 +1,18 @@
 import torch
 import torch.nn as nn
+from .structured_sparse import StructuredSparseParameter
+
+
+param_count = lambda m: sum(p.numel() for p in m.parameters() if p.requires_grad) if isinstance(m, nn.Module) else 0
+
+def get_sparse_param_stats(model):
+    breakdown = {n: m.param_count() for n, m in model.named_modules() if isinstance(m, StructuredSparseParameter)}
+    n_total = param_count(model)
+    n_nonzero = sum([_n for _, (_n, _) in breakdown.items()])
+    n_sparse = sum([_n for _, (_, _n) in breakdown.items()])
+    n_dense = n_total - n_sparse
+    return n_total, n_dense, n_sparse, n_nonzero, breakdown
+
 
 class DSNetwork(nn.Module):
     r"""
