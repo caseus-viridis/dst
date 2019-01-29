@@ -169,7 +169,7 @@ class StructuredSparseParameter(nn.Module):
         return 1. - self.mask.sum().float() / self.mask.numel()
 
     def forward(self):
-        return self.dense * self.mask.float()
+        return self.dense() * self.mask.float()
 
     def prune_by_threshold(self, threshold):
         raise NotImplementedError # TODO

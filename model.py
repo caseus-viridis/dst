@@ -61,7 +61,7 @@ class DynamicNetworkBase(nn.Module):
         model_size = {'sparse': sparse_size,'tied' : tied_size, 'fixed':fixed_size,'learnable':fixed_size + sparse_size + tied_size}    
         return model_size
 
-    
+
 
 class mnist_mlp(DynamicNetworkBase):
 

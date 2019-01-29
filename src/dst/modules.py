@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn import Parameter
 from .structured_sparse import StructuredSparseParameter, SparseParameter
 
 
@@ -8,7 +9,6 @@ class _DSBase(nn.Module):
     r"""
     Base class of a dynamic sparse module
     """
-
     def __init__(self):
         super(_DSBase, self).__init__()
 
@@ -35,7 +35,7 @@ class DSLinear(_DSBase):
             self.bias.data.zero_()
 
     def forward(self, input):
-        return F.linear(input, self.weight, self.bias)
+        return F.linear(input, self.weight(), self.bias)
 
     def extra_repr(self):
         return 'in_features={}, out_features={}, bias={}'.format(
@@ -112,14 +112,14 @@ class DSConv2d(_DSConvNd):
                  dilation=1,
                  groups=1,
                  bias=True):
-        kernel_size = torch.utils._pair(kernel_size)
-        stride = torch.utils._pair(stride)
-        padding = torch.utils._pair(padding)
-        dilation = torch.utils._pair(dilation)
+        kernel_size = torch.nn.modules.utils._pair(kernel_size)
+        stride = torch.nn.modules.utils._pair(stride)
+        padding = torch.nn.modules.utils._pair(padding)
+        dilation = torch.nn.modules.utils._pair(dilation)
         super(DSConv2d, self).__init__(in_channels, out_channels, kernel_size,
                                        stride, padding, dilation, False,
-                                       torch.utils._pair(0), groups, bias)
+                                       torch.nn.modules.utils._pair(0), groups, bias)
 
     def forward(self, input):
-        return F.conv2d(input, self.weight, self.bias, self.stride,
+        return F.conv2d(input, self.weight(), self.bias, self.stride, 
                         self.padding, self.dilation, self.groups)
