@@ -30,6 +30,11 @@ parser.add_argument(
     default=200,
     help='number of epochs (default: 200)')
 parser.add_argument(
+    '-sb',
+    '--spatial-bottleneck',
+    action='store_true',
+    help='Spatial bottleneck architecture (default: False)')
+parser.add_argument(
     '--gpu', default='0', type=str, help='id(s) for GPU(s) to use')
 args = parser.parse_args()
 
@@ -58,7 +63,10 @@ data = CIFAR10(
     num_workers=4,
     batch_size=args.batch_size,
     shuffle=True)
-model = cifar10_wrn.net(args.width).cuda()
+model = cifar_wrn.net(
+    width=args.width,
+    spatial_bottleneck=args.spatial_bottleneck
+).cuda()
 loss_func = nn.CrossEntropyLoss().cuda()
 optimizer = SGD(
     model.parameters(),
@@ -128,14 +136,14 @@ def test():
 def reparameterize(batch, epoch):
 
     # prune_or_grow_to_sparsity(model, sparsity=0.9)
-    n_total, n_dense, n_sparse, n_nonzero, sparsity, breakdown = get_sparse_param_stats(
-        model)
-    tqdm.write("Total parameter count = {}".format(n_total))
-    tqdm.write("Dense parameter count = {}".format(n_dense))
-    tqdm.write("Sparse parameter count = {}".format(n_sparse))
-    tqdm.write("Nonzero sparse parameter count = {}".format(n_nonzero))
-    tqdm.write("Sparsity = {:6.4f}".format(sparsity))
-
+    # n_total, n_dense, n_sparse, n_nonzero, sparsity, breakdown = get_sparse_param_stats(
+    #     model)
+    # tqdm.write("Total parameter count = {}".format(n_total))
+    # tqdm.write("Dense parameter count = {}".format(n_dense))
+    # tqdm.write("Sparse parameter count = {}".format(n_sparse))
+    # tqdm.write("Nonzero sparse parameter count = {}".format(n_nonzero))
+    # tqdm.write("Sparsity = {:6.4f}".format(sparsity))
+    pass
 
 if __name__ == "__main__":
     do_training()
