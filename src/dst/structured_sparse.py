@@ -230,13 +230,19 @@ class StructuredSparseParameter(nn.Module):
 
     def grow_to_sparsity(self, sparsity, reset_value=0.):
         # Grow groups randomly until at most sparsity
+        growth_mask = torch.zeros_like(self.group_mask)
         idx = torch.randperm(self.groups.num_groups) # randomized group order
         for i in idx[1-self.group_mask[idx]]:  # only those 0's
             if self.sparsity() > sparsity:
                 self.group_mask[i].fill_(1) # grow the i-th group back
-                # need to clamp values in self.dense to reset_value here [TODO], this seems impossible if dense is structured.  Leave this be for now.
+                growth_mask[i].fill_(1)
                 self.compute_mask_()
             else:
+                # NOTE: This is a very hacky thing: clamp parameter values to reset_value for the newly grown weights, ONLY IF the underlying dense parameter is unstructured
+                if isinstance(self.dense, DenseParameter):
+                    self.dense.clamp_values(
+                        mask=self.groups.group_mask_expand(growth_mask),
+                        value=reset_value)
                 return self.sparsity()
         return 0.
 

@@ -21,7 +21,7 @@ class StructuredDenseParameter(nn.Module):
     @property
     def dof(self):
         return self.bank.numel()
-    
+
     def size(self):
         return self.shape
 
@@ -52,6 +52,12 @@ class DenseParameter(StructuredDenseParameter):
     def init_params(self):
         nn.init.kaiming_uniform_(self.bank, a=math.sqrt(5))
 
+    def clamp_values(self, mask, value=0.):
+        """
+        Clamp bank values specified by mask, use with extreme caution!
+        """
+        self.bank.data[mask] = value
+
 
 class HashedParameter(StructuredDenseParameter):
     r"""
@@ -74,4 +80,3 @@ class HashedParameter(StructuredDenseParameter):
 
 class LowDisplacementRankParameter(StructuredDenseParameter):
     pass # TODO
-

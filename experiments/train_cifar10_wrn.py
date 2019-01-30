@@ -79,8 +79,11 @@ scheduler = MultiStepLR(optimizer, milestones=[60, 120, 160], gamma=0.2)
 # print the model description
 print(model)
 
+def train(epochs=args.epochs):
+    
 
-def train(epoch):
+
+def _train(epoch):
     model.train()
     scheduler.step()
     total_loss = 0.
@@ -117,7 +120,7 @@ def test(epoch):
 
 
 if __name__ == "__main__":
-    prune_or_grow_to_sparsity(model, sparsity=0.5)
+    prune_or_grow_to_sparsity(model, sparsity=0.99)
     n_total, n_dense, n_sparse, n_nonzero, sparsity, breakdown = get_sparse_param_stats(
         model)
     print("Total parameter count = {}".format(n_total))
@@ -125,7 +128,6 @@ if __name__ == "__main__":
     print("Sparse parameter count = {}".format(n_sparse))
     print("Nonzero sparse parameter count = {}".format(n_nonzero))
     print("Sparsity = {:6.4f}".format(sparsity))
-    # import ipdb; ipdb.set_trace()
 
     for epoch in range(args.epochs):
         training_loss = train(epoch)

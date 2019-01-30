@@ -7,9 +7,9 @@ from dst.structured_sparse import *
 x = SparseParameter(torch.randn(size=(32, 32)))
 _, sp = x.prune_by_threshold(threshold=0.01)
 print("Sparsity = {}".format(sp))
-sp = x.prune_to_sparsity(sparsity=0.5)
+sp = x.prune_to_sparsity(sparsity=0.9)
 print("Sparsity = {}".format(sp))
-sp = x.grow_to_sparsity(sparsity=0.25)
+sp = x.grow_to_sparsity(sparsity=0.6)
 print("Sparsity = {}".format(sp))
 
 

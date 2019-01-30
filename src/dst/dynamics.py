@@ -31,10 +31,10 @@ def prune_or_grow_to_sparsity(model, sparsity, p=1):
     }
 
 def adjust_pruning_threshold(old_threshold, num_pruned, target_num_pruned, tolerance=0.1, gain=2.):
+    # TODO
     if (num_pruned/target_num_pruned):
         pass
     return new_threshold
-
 
 
 class DSNetwork(nn.Module):
