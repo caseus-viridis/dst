@@ -12,10 +12,17 @@ class Grouping(object):
     - Expansion over groups, used to e.g. set group values to a specified value given a group mask (i.e. group pruning if the value is 0.)
     """
     def __init__(self, size):
-        self.size = torch.Size(size)
+        self.shape = torch.Size(size)
+
+    def size(self):
+        return self.shape
 
     @property
     def num_groups(self):
+        raise NotImplementedError
+
+    @property
+    def group_sizes(self):
         raise NotImplementedError
 
     # def group_reduce(self, fn):
@@ -25,14 +32,16 @@ class Grouping(object):
     #     raise NotImplementedError
 
     def group_lp_reduce(self, p=1):
-        return self.group_reduce(lambda x: torch.norm(x, p=p))
+        # return self.group_reduce(lambda x: torch.norm(x, p=p))
+        raise NotImplementedError
 
     def check_group_mask_len(self, group_mask):
         assert group_mask.numel()==self.num_groups, "group mask size mismatch"
 
     def group_mask_expand(self, group_mask):
-        self.check_group_mask_len(group_mask)
-        return self.group_expand(group_mask)
+        # self.check_group_mask_len(group_mask)
+        # return self.group_expand(group_mask)
+        raise NotImplementedError
 
 
 class SumGrouping(Grouping):
@@ -48,12 +57,6 @@ class SumGrouping(Grouping):
     @property
     def num_groups(self):
         return ga.num_groups + gb.num_groups
-
-    def group_reduce(self, fn):
-        raise NotImplementedError
-
-    def group_expand(self, fn):
-        raise NotImplementedError
 
 
 class ProductGrouping(Grouping):
@@ -71,12 +74,6 @@ class ProductGrouping(Grouping):
     def num_groups(self):
         return ga.num_groups * gb.num_groups
 
-    def group_reduce(self, fn):
-        raise NotImplementedError
-
-    def group_expand(self, fn):
-        raise NotImplementedError
-
 
 class ElementGrouping(Grouping):
     r"""
@@ -84,17 +81,20 @@ class ElementGrouping(Grouping):
     """
     def __init__(self, size):
         super(ElementGrouping, self).__init__(size)
-        self.size = size
 
     @property
     def num_groups(self):
-        return np.prod(self.size)
+        return int(np.prod(self.shape))
+
+    @property
+    def group_sizes(self):
+        return torch.LongTensor(self.num_groups).fill_(1)
 
     def group_lp_reduce(self, p=1):
         return torch.abs
 
     def group_mask_expand(self, group_mask):
-        return group_mask.view(self.size)
+        return group_mask.view(self.shape)
 
 
 class BlockGrouping(Grouping):
@@ -103,18 +103,21 @@ class BlockGrouping(Grouping):
     """
     def __init__(self, size, block_size=1):
         super(BlockGrouping, self).__init__(size)
-        self.size = size
         self.block_size = block_size
 
     @property
     def num_groups(self):
-        return np.prod(self.size)
+        return np.prod(self.shape)
+
+    @property
+    def group_sizes(self):
+        return torch.LongTensor(self.num_groups).fill_(1)
 
     def group_lp_reduce(self, p=1):
         return torch.abs
 
     def group_mask_expand(self, group_mask):
-        return group_mask.view(self.size)
+        return group_mask.view(self.shape)
 
 
 class DimGrouping(Grouping):
@@ -123,13 +126,16 @@ class DimGrouping(Grouping):
     """
     def __init__(self, size, dim=(0,)):
         super(DimGrouping, self).__init__(size)
-        self.size = size
         self.dim = dim
         self.cdim = tuple(set(range(len(size))) - set(dim))
 
     @property
     def num_groups(self):
-        return np.prod([self.size(d) for d in self.cdim])
+        return np.prod([self.shape(d) for d in self.cdim])
+
+    @property
+    def group_sizes(self):
+        pass # TODO
 
     def group_lp_reduce(self, p=1):
         lambda x: torch.norm(x, p=p, dim=self.cdim)
@@ -152,11 +158,11 @@ class ISSGrouping(Grouping):
     def num_groups(self):
         return self.num_hidden ** 2
 
-    def group_reduce(self):
-        raise NotImplementedError # [TODO]
-
-    def group_expand(self):
-        raise NotImplementedError # [TODO]
+    @property
+    def group_sizes(self):
+        return torch.LongTensor(self.num_groups).fill_(
+            (self.num_gates + 2) * self.num_hidden
+        )
 
 
 class StructuredSparseParameter(nn.Module):
@@ -167,22 +173,21 @@ class StructuredSparseParameter(nn.Module):
         super(StructuredSparseParameter, self).__init__()
         assert isinstance(dense, StructuredDenseParameter), "need a StructuredDenseParameter to wrap around"
         self.dense = dense
-        self.size = self.dense.size
+        self.shape = self.dense.shape
         self.groups = grouping(self.shape)
 
         self.register_buffer('group_mask', torch.ByteTensor(self.groups.num_groups))
         self.register_buffer('mask', torch.ByteTensor(size=self.shape))
         self.init_params()
 
-    @property
-    def shape(self):
-        return self.dense.shape
+    def size(self):
+        return self.shape
 
     def compute_mask_(self):
         self.mask = self.groups.group_mask_expand(self.group_mask)
 
     def compute_group_lp_(self, p=1):
-        self.group_lp = self.groups.group_lp_reduce(p=p)(self.dense())
+        self.group_lp = self.groups.group_lp_reduce(p=p)(self.dense()).view(-1)
 
     def init_params(self):
         self.group_mask.fill_(1)
@@ -190,10 +195,9 @@ class StructuredSparseParameter(nn.Module):
         self.compute_group_lp_()
         self.dense.init_params()
 
-    @property
     def sparsity(self):
         n_nonzero, n_total = self.param_count()
-        return 1. - n_nonzero.float() / n_total
+        return 1. - float(n_nonzero) / n_total
 
     def param_count(self):
         return int(self.mask.sum()), self.mask.numel()
@@ -202,19 +206,59 @@ class StructuredSparseParameter(nn.Module):
         return self.dense() * self.mask.float()
 
     def prune_by_threshold(self, threshold, p=1):
+        r"""
+        Prune groups based on Lp-norm compared to a threshold
+        """
+        sparsity_before = self.sparsity()
         self.compute_group_lp_(p=p)
-        self.group_mask[self.group_lp<threshold] = 0
+        self.group_mask[self.group_lp < threshold] = 0
         self.compute_mask_()
-        return 
+        sparsity_after = self.sparsity()
+        return sparsity_before, sparsity_after
 
-    def prune_by_number(self, num_to_prune, p=1):
-        self.compute_group_lp_(p=p)
-        # TODO
-        self.compute_mask_() 
+    def prune_to_sparsity(self, sparsity, p=1):
+        # Prune groups with smallest Lp-norm until at least sparsity
+        self.compute_group_lp_(p=p)  # fresh computation of self.group_lp
+        idx = self.group_lp.argsort()  # sort self.group_lp
+        for i in idx[self.group_mask[idx]]:  # only those 1's
+            if self.sparsity() < sparsity:
+                self.group_mask[i].fill_(0) # prune the i-th group away
+                self.compute_mask_()
+            else:
+                return self.sparsity()
+        return 1.
 
-# Alias for dumbest sparse parameter tensor
+    def grow_to_sparsity(self, sparsity, reset_value=0.):
+        # Grow groups randomly until at most sparsity
+        idx = torch.randperm(self.groups.num_groups) # randomized group order
+        for i in idx[1-self.group_mask[idx]]:  # only those 0's
+            if self.sparsity() > sparsity:
+                self.group_mask[i].fill_(1) # grow the i-th group back
+                # need to clamp values in self.dense to reset_value here [TODO], this seems impossible if dense is structured.  Leave this be for now.
+                self.compute_mask_()
+            else:
+                return self.sparsity()
+        return 0.
+
+    def prune_or_grow_to_sparsity(self, sparsity, p=1, reset_value=0.):
+        r"""
+        The main sparse reparameterization function, which
+        - (if current sparsity < target sparsity) prunes by group Lp-norm until at least the target sparsity
+        - (if current sparsity > target sparsity) grows randomly until at most the target sparsity
+        """
+        sparsity_before = self.sparsity()
+        if sparsity_before < sparsity:
+            sparsity_after = self.prune_to_sparsity(sparsity, p=p)
+        elif sparsity_before > sparsity:
+            sparsity_after = self.grow_to_sparsity(sparsity, reset_value=reset_value)
+        print("Reparameterized from sparsity {} to {}".format(
+            sparsity_before, sparsity_after))
+        return sparsity_before, sparsity_after
+
+
+# Alias for the dumbest sparse parameter tensor
 SparseParameter = lambda t: StructuredSparseParameter(
-    dense=DenseParameter(t), 
+    dense=DenseParameter(t),
     grouping=ElementGrouping
 )
 

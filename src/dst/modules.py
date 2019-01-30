@@ -36,7 +36,7 @@ class DSLinear(_DSBase):
         self.weight.init_params()
         if self.bias is not None:
             fan_in, _ = _calculate_fan_in_and_fan_out_from_size(
-                self.weight.size())
+                self.weight.shape)
             bound = 1 / math.sqrt(fan_in)
             nn.init.uniform_(self.bias, -bound, bound)
 
@@ -88,7 +88,7 @@ class _DSConvNd(_DSBase):
         self.weight.init_params()
         if self.bias is not None:
             fan_in, _ = _calculate_fan_in_and_fan_out_from_size(
-                self.weight.size())
+                self.weight.shape)
             bound = 1 / math.sqrt(fan_in)
             nn.init.uniform_(self.bias, -bound, bound)
 
@@ -150,7 +150,6 @@ class _DSConvTransposeMixin(object):
             return func(input, self.weight(), self.bias)
 
     def _output_padding(self, input, output_size, stride, padding, kernel_size):
-        # type: (Tensor, Optional[List[int]], List[int], List[int], List[int]) -> List[int]
         if output_size is None:
             ret = torch.nn.modules.utils._single(
                 self.output_padding)  # converting to list if was not already

@@ -50,7 +50,6 @@ class BNReLUConv(nn.Module):
         stride: stride of convolution layer
         padding: padding of convolution layer
     """
-
     def __init__(self,
                  ni,
                  no,
@@ -101,7 +100,7 @@ def wide_resnet_group(ni, no, k=1, stride=1, depth=1):
 
 class WideResNet(nn.Module):
     """
-    Wide Resnet
+    Wide ResNet
     Zagoruyko et al. 2016 (http://arxiv.org/abs/1605.07146)
     """
     def __init__(

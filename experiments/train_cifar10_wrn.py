@@ -9,17 +9,13 @@ from torch.optim import SGD
 from torch.optim.lr_scheduler import MultiStepLR, LambdaLR
 from data import CIFAR10
 from dst.models import cifar10_wrn
-from dst.dynamics import get_sparse_param_stats
+from dst.dynamics import get_sparse_param_stats, prune_or_grow_to_sparsity
 # from tensorboardX import SummaryWriter
 
 parser = argparse.ArgumentParser(
     description='CIFAR10-WRN dynamic sparse training')
 parser.add_argument(
-    '-w',
-    '--width',
-    type=int,
-    default=2,
-    help='width of WRN (default: 2)')
+    '-w', '--width', type=int, default=2, help='width of WRN (default: 2)')
 parser.add_argument(
     '-z',
     '--batch-size',
@@ -55,7 +51,7 @@ if DATAPATH is None:
 os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
 data = CIFAR10(
-    data_dir=DATAPATH+'/cifar10',
+    data_dir=DATAPATH + '/cifar10',
     cuda=True,
     num_workers=4,
     batch_size=args.batch_size,
@@ -68,10 +64,7 @@ optimizer = SGD(
     weight_decay=5e-4,
     momentum=0.9,
     nesterov=True)
-scheduler = MultiStepLR(
-    optimizer,
-    milestones=[60, 120, 160],
-    gamma=0.2)
+scheduler = MultiStepLR(optimizer, milestones=[60, 120, 160], gamma=0.2)
 
 # scheduler = LambdaLR(
 #     optimizer,
@@ -123,17 +116,27 @@ def test(epoch):
     return total_loss / (batch + 1), correct / total_size
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
+    prune_or_grow_to_sparsity(model, sparsity=0.5)
+    n_total, n_dense, n_sparse, n_nonzero, sparsity, breakdown = get_sparse_param_stats(
+        model)
+    print("Total parameter count = {}".format(n_total))
+    print("Dense parameter count = {}".format(n_dense))
+    print("Sparse parameter count = {}".format(n_sparse))
+    print("Nonzero sparse parameter count = {}".format(n_nonzero))
+    print("Sparsity = {:6.4f}".format(sparsity))
+    # import ipdb; ipdb.set_trace()
+
     for epoch in range(args.epochs):
         training_loss = train(epoch)
         test_loss, correct = test(epoch)
         print(
-            "Epoch {:3d}: training loss = \33[91m{:6.4f}\033[0m, test loss = \33[91m{:6.4f}\033[0m \tcorrect% = \33[92m{:5.2f}\033[0m".
-            format(epoch, training_loss, test_loss, correct*100)
-        )
-        n_total, n_dense, n_sparse, n_nonzero, breakdown = get_sparse_param_stats(model)
-        print("Total parameter count = {}".format(n_total))
-        print("Dense parameter count = {}".format(n_dense))
-        print("Sparse parameter count = {}".format(n_sparse))
-        print("Nonzero sparse parameter count = {}".format(n_nonzero))
-        print("Sparsity = {:5.2f}%".format(float(n_sparse - n_nonzero) / n_total))
+            "Epoch {:3d}: training loss = \33[91m{:6.4f}\033[0m, test loss = \33[91m{:6.4f}\033[0m \tcorrect% = \33[92m{:5.2f}\033[0m"
+            .format(epoch, training_loss, test_loss, correct * 100))
+        # n_total, n_dense, n_sparse, n_nonzero, sparsity, breakdown = get_sparse_param_stats(
+        #     model)
+        # print("Total parameter count = {}".format(n_total))
+        # print("Dense parameter count = {}".format(n_dense))
+        # print("Sparse parameter count = {}".format(n_sparse))
+        # print("Nonzero sparse parameter count = {}".format(n_nonzero))
+        # print("Sparsity = {:6.4f}".format(sparsity))
