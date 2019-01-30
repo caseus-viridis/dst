@@ -26,8 +26,11 @@ from dst.utils import param_count
 #     nn.ConvTranspose2d(
 #         64, 64, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False))
 
-model = cifar_resnet.resnet34(spatial_bottleneck=False)
-model_ = cifar_resnet.resnet34(spatial_bottleneck=True)
+# model = cifar_resnet.resnet34(spatial_bottleneck=False)
+# model_ = cifar_resnet.resnet34(spatial_bottleneck=True)
+
+ca = nn.Conv2d(3, 64, kernel_size=5, stride=2, padding=2, bias=False)
+
 x = torch.rand(16, 3, 32, 32)
 
 import ipdb; ipdb.set_trace()

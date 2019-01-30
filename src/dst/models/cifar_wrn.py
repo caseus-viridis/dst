@@ -68,7 +68,7 @@ class BNReLUConv(nn.Module):
             bias=False,
             stride=stride,
             padding=padding,
-            **kwargs
+            **kwargs 
         )
         self.init_parameters()
 
@@ -85,20 +85,18 @@ class BNReLUConv(nn.Module):
 
 
 class WideResNetBlock(nn.Module):
-    def __init__(self, ni, no, k=1, stride=1, spatial_bottleneck=False, **kwargs):
+    def __init__(self, ni, no, k=1, stride=1, spatial_bottleneck=False):
         super(WideResNetBlock, self).__init__()
         self.head = BNReLUConv(
             ni * k, no * k,
             stride=stride*2 if spatial_bottleneck else stride,
-            conv=DSConv2d,
-            **kwargs
+            conv=DSConv2d
         )
         self.tail = BNReLUConv(
             no * k, no * k,
             stride=2 if spatial_bottleneck else 1,
             conv=DSConvTranspose2d if spatial_bottleneck else DSConv2d,
-            output_padding=1 if spatial_bottleneck else 0,
-            **kwargs
+            **dict(output_padding=1) if spatial_bottleneck else {}
         )
         self.skip = Skip(ni * k, no * k, stride=stride)
 
