@@ -9,26 +9,30 @@ import torch.nn as nn
 from torch.optim import SGD
 from torch.optim.lr_scheduler import MultiStepLR, LambdaLR
 from data import CIFAR10
-from dst.models import cifar_wrn
+from dst.models import cifar_resnet
 from dst.reparameterization import get_sparse_param_stats, prune_or_grow_to_sparsity
+from dst.utils import param_count
 # from tensorboardX import SummaryWriter
 
 parser = argparse.ArgumentParser(
-    description='CIFAR10 WRN-28-2 dynamic sparse training')
-parser.add_argument(
-    '-w', '--width', type=int, default=2, help='width of WRN (default: 2)')
+    description='CIFAR10 ResNet experiments')
 parser.add_argument(
     '-z',
     '--batch-size',
     type=int,
-    default=128,
-    help='batch size (default: 128)')
+    default=64,
+    help='batch size (default: 64)')
 parser.add_argument(
     '-e',
     '--epochs',
     type=int,
-    default=200,
-    help='number of epochs (default: 200)')
+    default=400,
+    help='number of epochs (default: 400)')
+parser.add_argument(
+    '-sb',
+    '--spatial-bottleneck',
+    action='store_true',
+    help='Spatial bottleneck architecture (default: False)')
 parser.add_argument(
     '--gpu', default='0', type=str, help='id(s) for GPU(s) to use')
 args = parser.parse_args()
@@ -58,23 +62,24 @@ data = CIFAR10(
     num_workers=4,
     batch_size=args.batch_size,
     shuffle=True)
-model = cifar10_wrn.net(args.width).cuda()
+model = cifar_resnet.resnet18(
+    spatial_bottleneck=args.spatial_bottleneck).cuda()
 loss_func = nn.CrossEntropyLoss().cuda()
 optimizer = SGD(
     model.parameters(),
     lr=1e-1,
-    weight_decay=5e-4,
+    weight_decay=1e-4,
     momentum=0.9,
     nesterov=True)
-scheduler = MultiStepLR(optimizer, milestones=[60, 120, 160], gamma=0.2)
-rp_schedule = lambda epoch: max([
-    100 if epoch >=   0 else 0,
-    200 if epoch >=  25 else 0,
-    400 if epoch >=  80 else 0,
-    800 if epoch >= 140 else 0
-])
+scheduler = MultiStepLR(optimizer, milestones=[200, 300], gamma=0.1)
+# rp_schedule = lambda epoch: max([
+#     100 if epoch >=   0 else 0,
+#     200 if epoch >=  25 else 0,
+#     400 if epoch >=  80 else 0,
+#     800 if epoch >= 140 else 0
+# ])
 print(model)  # print the model description
-
+print("Parameter count = {}".format(param_count(model)))
 
 def do_training(num_epochs=args.epochs):
     batch = batches_since_last_rp = 0
@@ -85,9 +90,9 @@ def do_training(num_epochs=args.epochs):
                 batch += 1
                 training_loss = train(x, y)
                 batches_since_last_rp += 1
-                if batches_since_last_rp == rp_schedule(epoch):
-                    reparameterize(batch, epoch)
-                    batches_since_last_rp = 0
+                # if batches_since_last_rp == rp_schedule(epoch):
+                #     reparameterize(batch, epoch)
+                #     batches_since_last_rp = 0
                 loader.set_postfix(
                     loss="\33[91m{:6.4f}\033[0m".format(training_loss))
         test_loss, correct = test()
@@ -126,7 +131,6 @@ def test():
 
 
 def reparameterize(batch, epoch):
-
     # prune_or_grow_to_sparsity(model, sparsity=0.9)
     n_total, n_dense, n_sparse, n_nonzero, sparsity, breakdown = get_sparse_param_stats(
         model)

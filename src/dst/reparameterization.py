@@ -2,9 +2,7 @@ import tqdm
 import torch
 import torch.nn as nn
 from .structured_sparse import StructuredSparseParameter
-
-
-param_count = lambda m: sum(p.numel() for p in m.parameters() if p.requires_grad) if isinstance(m, nn.Module) else 0
+from .utils import param_count
 
 def get_sparse_param_stats(model):
     breakdown = {n: m.param_count() for n, m in model.named_modules() if isinstance(m, StructuredSparseParameter)}

@@ -25,7 +25,7 @@ class Skip(nn.Module):
 class GlobalAvgPooling(nn.Module):
     def __init__(self):
         super(GlobalAvgPooling, self).__init__()
-    
+
     def forward(self, x):
         return x.view(*x.shape[:2], -1).mean(dim=-1)
 
@@ -37,7 +37,7 @@ class BNReLUPoolLin(nn.Module):
         self.nl = nn.ReLU()
         self.pool = GlobalAvgPooling()
         self.lin = nn.Linear(ni, no)
-    
+
     def forward(self, x):
         return self.lin(self.pool(self.nl(self.norm(x))))
 
@@ -129,4 +129,11 @@ class WideResNet(nn.Module):
         return self.tail(self.body(self.head(x)))
 
 
-net = lambda width: WideResNet(width=width)
+def net(width, depth=4, num_classes=10, num_features=16, num_scales=3):
+    return WideResNet(
+        num_classes=num_classes,  # 10 for cifar10, 100 for cifar100
+        num_features=num_features,
+        num_scales=num_scales,
+        width=width,
+        depth=depth
+    )

@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-# from ..reparameterization import DSNetwork
 from ..modules import DSLinear
 
 def net():

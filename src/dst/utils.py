@@ -1,6 +1,9 @@
 import numpy as np
 import torch
 
+param_count = lambda m: sum(p.numel() for p in m.parameters() if p.requires_grad) if isinstance(m, torch.nn.Module) else 0
+
+
 def rand_placement(shape, dof, seed=0):
     np.random.seed(seed)
     return torch.LongTensor(
@@ -11,7 +14,7 @@ def _calculate_fan_in_and_fan_out_from_size(sz):
     dimensions = len(sz)
     if dimensions < 2:
         raise ValueError("Fan in and fan out can not be computed for tensor with fewer than 2 dimensions")
-    if dimensions == 2:  
+    if dimensions == 2:
         fan_in = sz[1]
         fan_out = sz[0]
     else:
