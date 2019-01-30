@@ -11,6 +11,7 @@ from torch.optim.lr_scheduler import MultiStepLR, LambdaLR
 from data import CIFAR10
 from dst.models import cifar_wrn
 from dst.reparameterization import get_sparse_param_stats, prune_or_grow_to_sparsity
+from dst.utils import param_count
 # from tensorboardX import SummaryWriter
 
 parser = argparse.ArgumentParser(
@@ -36,7 +37,20 @@ parser.add_argument(
     help='Spatial bottleneck architecture (default: False)')
 parser.add_argument(
     '--gpu', default='0', type=str, help='id(s) for GPU(s) to use')
+parser.add_argument(
+    '-l',
+    '--log-file',
+    type=str,
+    default='log/' + os.path.splitext(os.path.split(__file__)[1])[0] + '.log',
+    help='log file')
 args = parser.parse_args()
+
+#  logger
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.DEBUG,
+    filename=args.log_file,
+    filemode='a')
 
 # progress bar
 pb_wrap = lambda it: tqdm(it, leave=False, dynamic_ncols=True)
@@ -49,7 +63,6 @@ os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 torch.backends.cudnn.benchmark = True
 
 # data path
-logger = logging.getLogger(__name__)
 DATAPATH = os.getenv("DATAPATH")
 if DATAPATH is None:
     logger.warning("Dataset directory is not configured. Please set the "
@@ -81,17 +94,20 @@ rp_schedule = lambda epoch: max([
     400 if epoch >=  80 else 0,
     800 if epoch >= 140 else 0
 ])
-print(model)  # print the model description
+logger.debug(model)  # print the model description
+logger.debug("Parameter count = {}".format(param_count(model)))
 
 
 def do_training(num_epochs=args.epochs):
     batch = batches_since_last_rp = 0
     for epoch in range(args.epochs):
+        training_loss = 0.
         with pb_wrap(data.train) as loader:
             loader.set_description("Training epoch {:3d}".format(epoch))
             for i, (x, y) in enumerate(loader):
                 batch += 1
-                training_loss = train(x, y)
+                loss = train(x, y)
+                training_loss += loss
                 batches_since_last_rp += 1
                 if batches_since_last_rp == rp_schedule(epoch):
                     reparameterize(batch, epoch)
@@ -99,7 +115,8 @@ def do_training(num_epochs=args.epochs):
                 loader.set_postfix(
                     loss="\33[91m{:6.4f}\033[0m".format(training_loss))
         test_loss, correct = test()
-        tqdm.write(
+        training_loss /= i + 1
+        logger.debug(
             "Epoch {:3d}: training loss = \33[91m{:6.4f}\033[0m, test loss = \33[91m{:6.4f}\033[0m \tcorrect% = \33[92m{:5.2f}\033[0m"
             .format(epoch, training_loss, test_loss, correct * 100))
 
@@ -121,7 +138,7 @@ def test():
     total_size = 0
     with torch.no_grad():
         with pb_wrap(data.test) as loader:
-            loader.set_description("Testing: ")
+            loader.set_description("Testing")
             for batch, (x, y) in enumerate(loader):
                 x, y = x.cuda(), y.cuda()
                 _y = model(x)
