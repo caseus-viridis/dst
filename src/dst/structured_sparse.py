@@ -251,6 +251,8 @@ class StructuredSparseParameter(nn.Module):
         The main sparse reparameterization function, which
         - (if current sparsity < target sparsity) prunes by group Lp-norm until at least the target sparsity
         - (if current sparsity > target sparsity) grows randomly until at most the target sparsity
+        NOTE: the per-group iteration of pruning and growth could be stupidly slow when a large number of groups are to be pruned or grown, but this ensures correctness easily
+        TODO: make it more efficient
         """
         sparsity_before = self.sparsity()
         if sparsity_before < sparsity:

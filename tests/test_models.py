@@ -4,7 +4,7 @@ from dst.models import (
     cifar10_wrn
 )
 from dst.modules import DSConv2d
-from dst.dynamics import param_count, get_sparse_param_stats
+from dst.reparameterization import param_count, get_sparse_param_stats
 
 # net = cifar10_wrn.net(width=2).cuda()
 # print(net)
