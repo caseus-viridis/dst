@@ -34,6 +34,12 @@ parser.add_argument(
     action='store_true',
     help='Spatial bottleneck architecture (default: False)')
 parser.add_argument(
+    '-sm',
+    '--spatial-mask',
+    type=str,
+    default='None',
+    help='Spatial mask as an alternative as bottleneck (default: None)')
+parser.add_argument(
     '--gpu', default='0', type=str, help='id(s) for GPU(s) to use')
 parser.add_argument(
     '-l',
@@ -74,8 +80,9 @@ data = CIFAR10(
     num_workers=4,
     batch_size=args.batch_size,
     shuffle=True)
-model = cifar_resnet.resnet18(
-    spatial_bottleneck=args.spatial_bottleneck).cuda()
+model = cifar_resnet.resnet50(
+    spatial_bottleneck=args.spatial_bottleneck,
+    spatial_mask=args.spatial_mask).cuda()
 loss_func = nn.CrossEntropyLoss().cuda()
 optimizer = SGD(
     model.parameters(),

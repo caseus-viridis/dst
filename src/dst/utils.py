@@ -5,6 +5,9 @@ param_count = lambda m: sum(p.numel() for p in m.parameters() if p.requires_grad
 
 
 def rand_placement(shape, dof, seed=0):
+    r"""
+    Random placement for hashed dense parameter tensor
+    """
     np.random.seed(seed)
     return torch.LongTensor(
         np.random.randint(dof, size=shape)
@@ -26,3 +29,26 @@ def _calculate_fan_in_and_fan_out_from_size(sz):
         fan_in = num_input_fmaps * receptive_field_size
         fan_out = num_output_fmaps * receptive_field_size
     return fan_in, fan_out
+
+def sparse_mask_2d(dim, sparsity=0.25):
+    r"""
+    A sparse 2D binary mask
+    """
+    mask = torch.ByteTensor(dim**2).zero_()
+    mask[:int(sparsity*dim**2)] = 1
+    return mask[torch.randperm(dim**2)].view([dim, dim])
+
+def checker_mask_2d(dim, quarters=1):
+    r"""
+    A regular sparse 2D binary mask with checkerboard pattern
+    """
+    mask = torch.ByteTensor(size=[dim, dim]).zero_()
+    if quarters > 0:
+        mask[0::2, 0::2] = 1
+    if quarters > 1:
+        mask[1::2, 1::2] = 1
+    if quarters > 2:
+        mask[0::2, 1::2] = 1
+    if quarters > 3:
+        mask[1::2, 0::2] = 1
+    return mask

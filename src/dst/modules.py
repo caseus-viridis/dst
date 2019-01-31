@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import Parameter
 from .structured_sparse import StructuredSparseParameter, SparseParameter
-from .utils import _calculate_fan_in_and_fan_out_from_size
+from .utils import _calculate_fan_in_and_fan_out_from_size, sparse_mask_2d, checker_mask_2d
 
 
 class _DSBase(nn.Module):
@@ -112,6 +112,7 @@ class DSConv2d(_DSConvNd):
     r"""
     A dynamic sparse version of nn.Conv2d
     """
+
     def __init__(self,
                  in_channels,
                  out_channels,
@@ -136,20 +137,25 @@ class DSConv2d(_DSConvNd):
 
 
 class _DSConvTransposeMixin(object):
-    __constants__ = ['stride', 'padding', 'kernel_size', 'dim_size',
-                     'output_padding', 'groups', 'dilation', 'transposed', 'bias']
+    __constants__ = [
+        'stride', 'padding', 'kernel_size', 'dim_size', 'output_padding',
+        'groups', 'dilation', 'transposed', 'bias'
+    ]
+
     def forward(self, input, output_size=None):
         # type(Tensor, Optional[List[int]]) -> Tensor
-        output_padding = self._output_padding(input, output_size, self.stride, self.padding, self.kernel_size)
-        func = self._backend.ConvNd(
-            self.stride, self.padding, self.dilation, self.transposed,
-            output_padding, self.groups)
+        output_padding = self._output_padding(input, output_size, self.stride,
+                                              self.padding, self.kernel_size)
+        func = self._backend.ConvNd(self.stride, self.padding, self.dilation,
+                                    self.transposed, output_padding,
+                                    self.groups)
         if self.bias is None:
             return func(input, self.weight())
         else:
             return func(input, self.weight(), self.bias)
 
-    def _output_padding(self, input, output_size, stride, padding, kernel_size):
+    def _output_padding(self, input, output_size, stride, padding,
+                        kernel_size):
         if output_size is None:
             ret = torch.nn.modules.utils._single(
                 self.output_padding)  # converting to list if was not already
@@ -160,8 +166,8 @@ class _DSConvTransposeMixin(object):
                 output_size = output_size[2:]
             if len(output_size) != k:
                 raise ValueError(
-                    "output_size must have {} or {} elements (got {})"
-                    .format(k, k + 2, len(output_size)))
+                    "output_size must have {} or {} elements (got {})".format(
+                        k, k + 2, len(output_size)))
 
             min_sizes = torch.jit.annotate(List[int], [])
             max_sizes = torch.jit.annotate(List[int], [])
@@ -179,7 +185,8 @@ class _DSConvTransposeMixin(object):
                     raise ValueError((
                         "requested an output size of {}, but valid sizes range "
                         "from {} to {} (for an input of {})").format(
-                            output_size, min_sizes, max_sizes, input.size()[2:]))
+                            output_size, min_sizes, max_sizes,
+                            input.size()[2:]))
 
             res = torch.jit.annotate(List[int], [])
             for d in range(k):
@@ -193,6 +200,7 @@ class DSConvTranspose2d(_DSConvTransposeMixin, _DSConvNd):
     r"""
     A dynamic sparse version of nn.ConvTranspose2d
     """
+
     def __init__(self,
                  in_channels,
                  out_channels,
@@ -218,3 +226,41 @@ class DSConvTranspose2d(_DSConvTransposeMixin, _DSConvNd):
         return F.conv_transpose2d(input, self.weight(), self.bias, self.stride,
                                   self.padding, output_padding, self.groups,
                                   self.dilation)
+
+
+class SpatialMask(nn.Module):
+    r"""
+    A spatial mask layer
+        mask: a spatial multiplicative mask
+        shuffle: whether to shuffle mask each time like dropout
+    """
+
+    def __init__(self, mask, shuffle=False):
+        super(SpatialMask, self).__init__()
+        self.register_buffer('mask', mask)
+        self.shuffle = shuffle
+
+    def reshuffle_mask_(self):
+        self.mask = self.mask.view(-1)[torch.randperm(self.mask.numel())].view_as(self.mask)
+
+    def forward(self, input):
+        if self.shuffle:
+            self.reshuffle_mask_()
+        if not self.training and self.shuffle:
+            return input * self.mask.float().mean()
+        else:
+            return input * self.mask.float()
+
+    def extra_repr(self):
+        return "size = {}".format(self.mask.shape)
+
+
+# aliases
+CheckerMask2d = lambda dim, quarters=1: SpatialMask(
+    mask=checker_mask_2d(dim, quarters),
+    shuffle=False
+)
+SparseMask2d = lambda dim, sparsity=0.25, dynamic=False: SpatialMask(
+    mask=sparse_mask_2d(dim, sparsity),
+    shuffle=dynamic
+)
