@@ -1,6 +1,7 @@
 import torch
 from torchvision import datasets, transforms
 import numpy as np
+from functools import partial
 
 
 class MNIST(object):
@@ -31,9 +32,10 @@ class MNIST(object):
             **gpu_conf)
 
 
-class CIFAR10(object):
+class CIFAR(object):
     def __init__(self,
-                 data_dir='./data/cifar10',
+                 num_classes=10,
+                 data_dir='./data/cifar',
                  cuda=False,
                  num_workers=4,
                  batch_size=64,
@@ -49,7 +51,6 @@ class CIFAR10(object):
         normalize = transforms.Normalize(
             np.array([125.3, 123.0, 113.9]) / 255.0,
             np.array([63.0, 62.1, 66.7]) / 255.0)
-
         transform_train = transforms.Compose([
             transforms.Pad(4, padding_mode='reflect'),
             transforms.RandomHorizontalFlip(),
@@ -58,7 +59,7 @@ class CIFAR10(object):
         ])
         transform_test = transforms.Compose([transforms.ToTensor(), normalize])
         self.train = torch.utils.data.DataLoader(
-            datasets.CIFAR10(
+            eval("datasets.CIFAR{:d}".format(num_classes))(
                 data_dir, train=True, download=True,
                 transform=transform_train),
             batch_size=batch_size,
@@ -69,8 +70,10 @@ class CIFAR10(object):
             batch_size=batch_size,
             shuffle=False,
             **gpu_conf)
-        self.classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog',
-                        'horse', 'ship', 'truck')
+
+# aliases
+CIFAR10 = partial(CIFAR, num_classes=10)
+CIFAR100 = partial(CIFAR, num_classes=100)
 
 
 class I1K(object):

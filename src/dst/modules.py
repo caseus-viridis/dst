@@ -143,7 +143,6 @@ class _DSConvTransposeMixin(object):
     ]
 
     def forward(self, input, output_size=None):
-        # type(Tensor, Optional[List[int]]) -> Tensor
         output_padding = self._output_padding(input, output_size, self.stride,
                                               self.padding, self.kernel_size)
         func = self._backend.ConvNd(self.stride, self.padding, self.dilation,
