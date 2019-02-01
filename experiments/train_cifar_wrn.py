@@ -99,9 +99,10 @@ data = eval(args.dataset.upper())(
     num_workers=4,
     batch_size=args.batch_size,
     shuffle=True)
-model = DSModel(cifar_wrn.net(
-    width=args.width, spatial_bottleneck=args.spatial_bottleneck
-)).cuda()
+model = DSModel(
+    model=cifar_wrn.net(width=args.width, spatial_bottleneck=args.spatial_bottleneck),
+    target_sparsity=0.9
+).cuda()
 loss_func = nn.CrossEntropyLoss().cuda()
 optimizer = SGD(
     model.parameters(),
@@ -132,7 +133,8 @@ def do_training(num_epochs=args.epochs):
                 training_loss += loss
                 batches_since_last_rp += 1
                 if batches_since_last_rp == rp_schedule(epoch):
-                    reparameterize(batch, epoch)
+                    model.prune_by_threshold()
+                    model.reallocate_free_parameters()
                     batches_since_last_rp = 0
                 loader.set_postfix(
                     loss="\33[91m{:6.4f}\033[0m".format(loss))
@@ -175,21 +177,6 @@ def test():
                 total_size += x.shape[0]
     return total_loss / (batch + 1), correct / total_size
 
-
-def reparameterize(batch, epoch):
-    # changes = model.prune_by_threshold(threshold=1e-2)
-    changes = model.prune_or_grow_to_sparsity(sparsity=0.2)
-    model.reallocate_free_parameters(target_sparsity=0.1, heuristic=None)
-
-    import ipdb; ipdb.set_trace()
-    # n_total, n_dense, n_sparse, n_nonzero, sparsity, breakdown = get_sparse_param_stats(
-    #     model)
-    # tqdm.write("Total parameter count = {}".format(n_total))
-    # tqdm.write("Dense parameter count = {}".format(n_dense))
-    # tqdm.write("Sparse parameter count = {}".format(n_sparse))
-    # tqdm.write("Nonzero sparse parameter count = {}".format(n_nonzero))
-    # tqdm.write("Sparsity = {:6.4f}".format(sparsity))
-    # pass
 
 if __name__ == "__main__":
     do_training()
