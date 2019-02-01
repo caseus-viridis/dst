@@ -10,7 +10,7 @@ from torch.optim import SGD
 from torch.optim.lr_scheduler import MultiStepLR, LambdaLR
 from data import CIFAR10, CIFAR100
 from dst.models import cifar_resnet
-from dst.reparameterization import get_sparse_param_stats, prune_or_grow_to_sparsity
+from dst.reparameterization import get_sparse_param_stats, prune_or_grow_to_sparsity, prune_by_threshold
 from dst.utils import param_count
 from pytorch_monitor import init_experiment, monitor_module
 

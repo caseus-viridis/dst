@@ -16,6 +16,7 @@ setup(
         'torchvision',
         'numpy',
         'tqdm',
+        'pytorch-monitor',
     ),
 
     python_requires='>=3.4'

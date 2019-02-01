@@ -10,14 +10,20 @@ from torch.optim import SGD
 from torch.optim.lr_scheduler import MultiStepLR, LambdaLR
 from data import CIFAR10, CIFAR100
 from dst.models import cifar_wrn
-from dst.reparameterization import get_sparse_param_stats, prune_or_grow_to_sparsity
+from dst.reparameterization import DSModel
 from dst.utils import param_count
-# from tensorboardX import SummaryWriter
+from pytorch_monitor import init_experiment, monitor_module
 
 parser = argparse.ArgumentParser(
     description='CIFAR10 WRN-28-D dynamic sparse training')
 parser.add_argument(
     '-w', '--width', type=int, default=2, help='width of WRN (default: 2)')
+parser.add_argument(
+    '-ds',
+    '--dataset',
+    type=str,
+    default='cifar10',
+    help='dataset, cifar10 or cifar100 (default: cifar10)')
 parser.add_argument(
     '-z',
     '--batch-size',
@@ -43,6 +49,11 @@ parser.add_argument(
     type=str,
     default='log/' + os.path.splitext(os.path.split(__file__)[1])[0] + '.log',
     help='log file')
+parser.add_argument(
+    '-m',
+    '--monitor',
+    action='store_true',
+    help='monitoring or not (default: False)')
 args = parser.parse_args()
 
 #  logger
@@ -51,8 +62,18 @@ logging.basicConfig(
     format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
     datefmt='%H:%M:%S',
     level=logging.DEBUG,
-    filename=args.log_file, 
+    filename=args.log_file,
     filemode='a')
+
+# monitor
+if args.monitor:
+    writer, config = init_experiment({
+        'title': "CIFAR10 ResNet experiments",
+        'run_name': "{}-resnet{:d}-{}".format(args.dataset, args.depth,
+            "spatial_bottleneck" if args.spatial_bottleneck else args.spatial_mask),
+        'log_dir': './runs',
+        'random_seed': 7734
+    })
 
 # progress bar
 pb_wrap = lambda it: tqdm(it, leave=False, dynamic_ncols=True)
@@ -72,16 +93,15 @@ if DATAPATH is None:
     DATAPATH = './data'  # default
 
 # data, model, loss, optimizer, lr_scheduler, rp_schedule
-data = CIFAR10(
-    data_dir=DATAPATH + '/cifar10',
+data = eval(args.dataset.upper())(
+    data_dir=DATAPATH + '/' + args.dataset,
     cuda=True,
     num_workers=4,
     batch_size=args.batch_size,
     shuffle=True)
-model = cifar_wrn.net(
-    width=args.width,
-    spatial_bottleneck=args.spatial_bottleneck
-).cuda()
+model = DSModel(cifar_wrn.net(
+    width=args.width, spatial_bottleneck=args.spatial_bottleneck
+)).cuda()
 loss_func = nn.CrossEntropyLoss().cuda()
 optimizer = SGD(
     model.parameters(),
@@ -115,12 +135,16 @@ def do_training(num_epochs=args.epochs):
                     reparameterize(batch, epoch)
                     batches_since_last_rp = 0
                 loader.set_postfix(
-                    loss="\33[91m{:6.4f}\033[0m".format(training_loss))
+                    loss="\33[91m{:6.4f}\033[0m".format(loss))
         test_loss, correct = test()
         training_loss /= i + 1
         logger.debug(
             "Epoch {:3d}: training loss = \33[91m{:6.4f}\033[0m, test loss = \33[91m{:6.4f}\033[0m \tcorrect% = \33[92m{:5.2f}\033[0m"
             .format(epoch, training_loss, test_loss, correct * 100))
+        if args.monitor:
+            writer.add_scalar('training_loss', training_loss, epoch)
+            writer.add_scalar('test_loss', test_loss, epoch)
+            writer.add_scalar('correct', correct, epoch)
 
 
 def train(x, y):
@@ -153,8 +177,11 @@ def test():
 
 
 def reparameterize(batch, epoch):
+    # changes = model.prune_by_threshold(threshold=1e-2)
+    changes = model.prune_or_grow_to_sparsity(sparsity=0.2)
+    model.reallocate_free_parameters(target_sparsity=0.1, heuristic=None)
 
-    # prune_or_grow_to_sparsity(model, sparsity=0.9)
+    import ipdb; ipdb.set_trace()
     # n_total, n_dense, n_sparse, n_nonzero, sparsity, breakdown = get_sparse_param_stats(
     #     model)
     # tqdm.write("Total parameter count = {}".format(n_total))
@@ -162,7 +189,7 @@ def reparameterize(batch, epoch):
     # tqdm.write("Sparse parameter count = {}".format(n_sparse))
     # tqdm.write("Nonzero sparse parameter count = {}".format(n_nonzero))
     # tqdm.write("Sparsity = {:6.4f}".format(sparsity))
-    pass
+    # pass
 
 if __name__ == "__main__":
     do_training()

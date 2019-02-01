@@ -131,7 +131,7 @@ class WideResNet(nn.Module):
         ):
         super(WideResNet, self).__init__()
         widths = [int(num_features * width * 2**s) for s in range(num_scales)]
-        self.head = DSConv2d(
+        self.head = nn.Conv2d(
             3, num_features, kernel_size=3, padding=1, bias=False)
         self.body = nn.Sequential(*[
             nn.Sequential(*wide_resnet_group(

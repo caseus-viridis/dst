@@ -1,85 +1,89 @@
 import tqdm
+import itertools
 import torch
 import torch.nn as nn
 from .structured_sparse import StructuredSparseParameter
 from .utils import param_count
 
-def get_sparse_param_stats(model):
-    breakdown = {n: m.param_count() for n, m in model.named_modules() if isinstance(m, StructuredSparseParameter)}
-    n_total = param_count(model)
-    n_nonzero = sum([_n for _, (_n, _) in breakdown.items()])
-    n_sparse = sum([_n for _, (_, _n) in breakdown.items()])
-    n_dense = n_total - n_sparse
-    sparsity = float(n_sparse - n_nonzero) / n_total
-    return n_total, n_dense, n_sparse, n_nonzero, sparsity, breakdown
 
-def prune_by_threshold(model, threshold, p=1):
-    # prune or all sparse parameters by a global threshold
-    return {
-        n: m.prune_by_threshold(threshold, p=p)
-        for n, m in model.named_modules()
-        if isinstance(m, StructuredSparseParameter)
-    }
+class DSModel(nn.Module):
+    r"""
+    A dynamic sparse network wrapper for models with dynamic sparse layers
+    """
+    def __init__(self, model):
+        super(DSModel, self).__init__()
+        self.model = model
+        self.pruning_threshold = 0.
+        self.update_stats(init=True)
+        self.num_sparse_parameters = len(self.breakdown)
 
-def prune_or_grow_to_sparsity(model, sparsity, p=1):
-    # prune or grow all sparse parameters to a target sparsity
-    return {
-        n: m.prune_or_grow_to_sparsity(sparsity, p=p)
-        for n, m in model.named_modules()
-        if isinstance(m, StructuredSparseParameter)
-    }
+    def forward(self, *args, **kwargs):
+        return self.model(*args, **kwargs)
 
-def adjust_pruning_threshold(old_threshold, num_pruned, target_num_pruned, tolerance=0.1, gain=2.):
+    def sparse_parameters(self):
+        # An iterator over sparse parameters
+        for n, m in self.named_sparse_parameters():
+            yield m
+
+    def named_sparse_parameters(self):
+        # An iterator over sparse parameters and names
+        for n, m in self.named_modules():
+            if isinstance(m, StructuredSparseParameter):
+                yield n, m
+
+    def update_stats(self, init=False):
+        # Update sparse parameter statistics
+        if not init:
+            self._breakdown = self.breakdown.copy()  # keep previous
+        self.breakdown = {
+            n: m.param_count()
+            for n, m in self.named_sparse_parameters()
+        }
+        self.np_total = param_count(self.model)
+        self.np_nonzero = sum([_n for _, (_n, _) in self.breakdown.items()])
+        self.np_sparse = sum([_n for _, (_, _n) in self.breakdown.items()])
+        self.np_dense = self.np_total - self.np_sparse
+        self.sparsity = float(self.np_sparse - self.np_nonzero) / self.np_total
+
+    def prune_by_threshold(self, threshold, p=1):
+        # Prune all sparse parameters by a global threshold on Lp-norm
+        changes = {
+            n: m.prune_by_threshold(threshold, p=p)
+            for n, m in self.named_sparse_parameters()
+        }
+        self.update_stats()
+        return changes
+
+    def prune_or_grow_to_sparsity(self, sparsity, p=1):
+        # Prune or grow all sparse parameters to a target sparsity
+        if isinstance(sparsity, float):
+            sparsity = [sparsity] * self.num_sparse_parameters
+        changes = {
+            n: m.prune_or_grow_to_sparsity(s, p=p)
+            for s, (n, m) in zip(sparsity, self.named_sparse_parameters())
+        }
+        self.update_stats()
+        return changes
+
+    def reallocate_free_parameters(self, target_sparsity, p=1, heuristic=None):
+        # Reallocate parameters until model reaches at most a target sparsity
+        if self.sparsity > target_sparsity: # only when there is free parameters to reallocate
+            N = [n for _, (_, n) in self.breakdown.items()]  # total non-zero parameter count
+            M = [m for _, (m, _) in self._breakdown.items()]  # old non-zero parameter count
+            # K = [_m - m for (_, (_m, _)), (_, (m, _)) in zip(self._breakdown.items(), self.breakdown.items())]
+            R = [r for _, (r, _) in self.breakdown.items()]  # numbers of surviving weights
+            F = self.np_total * (self.sparsity - target_sparsity) # number of free parameters
+            G = [F * r / sum(R) for r in R] # number of growth (TODO: make it a general heuristic)
+            S = [1. - (g + r) / n for g, r, n in zip(G, R, N)] # target sparsities
+            return self.prune_or_grow_to_sparsity(sparsity=S, p=p)
+
+
+def set_point_control(self, old_threshold,
+                                num_pruned,
+                                target_num_pruned,
+                                tolerance=0.1,
+                                gain=2.):
     # TODO
     if (num_pruned/target_num_pruned):
         pass
     return new_threshold
-
-
-class DSNetwork(nn.Module):
-    r"""
-    A dynamic sparse network container for models with dynamic sparse layers
-    """
-    def __init__(self):
-        super(DSNetwork, self).__init__()
-
-
-    # def prune(self,prune_fraction_fc,prune_fraction_conv,prune_fraction_fc_special = None):
-    #     for x in [x for x  in self.modules() if isinstance(x,SparseTensor)]:
-    #         if x.conv_tensor:
-    #             x.prune_small_connections(prune_fraction_conv)
-    #         else:
-    #             if x.s_tensor.size(0) == 10 and  x.s_tensor.size(1) == 100:
-    #                 x.prune_small_connections(prune_fraction_fc_special)
-    #             else:
-    #                 x.prune_small_connections(prune_fraction_fc)
-
-
-    # def get_model_size(self):
-    #     def get_tensors_and_test(tensor_type):
-    #         relevant_tensors = [x for x in self.modules() if isinstance(x,tensor_type)]
-    #         relevant_params = [p for x in relevant_tensors for p in x.parameters()]
-    #         is_relevant_param = lambda x : [y for y in relevant_params if x is y]
-
-    #         return relevant_tensors,is_relevant_param
-
-    #     sparse_tensors,is_sparse_param = get_tensors_and_test(SparseTensor)
-    #     tied_tensors,is_tied_param = get_tensors_and_test(TiedTensor)
-
-
-    #     sparse_params = [p for x in sparse_tensors for p in x.parameters()]
-    #     is_sparse_param = lambda x : [y for y in sparse_params if x is y]
-
-
-    #     sparse_size = sum([x.get_sparsity()[0].item() for x in sparse_tensors])
-
-    #     tied_size = 0
-    #     for k in tied_tensors:
-    #         unique_reps = k.weight_alloc.cpu().unique()
-    #         subtensor_size = np.prod(list(k.bank.size())[1:])
-    #         tied_size += unique_reps.size(0) * subtensor_size
-
-
-    #     fixed_size = sum([p.data.nelement()  for p in self.parameters() if (not is_sparse_param(p) and not is_tied_param(p))])
-    #     model_size = {'sparse': sparse_size,'tied' : tied_size, 'fixed':fixed_size,'learnable':fixed_size + sparse_size + tied_size}
-    #     return model_size

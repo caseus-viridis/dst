@@ -1,7 +1,7 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
 from .structured_dense import StructuredDenseParameter, DenseParameter
 
 
@@ -259,8 +259,8 @@ class StructuredSparseParameter(nn.Module):
             sparsity_after = self.prune_to_sparsity(sparsity, p=p)
         elif sparsity_before > sparsity:
             sparsity_after = self.grow_to_sparsity(sparsity, reset_value=reset_value)
-        print("Reparameterized from sparsity {} to {}".format(
-            sparsity_before, sparsity_after))
+        # print("Reparameterized from sparsity {} to {}".format(
+        #     sparsity_before, sparsity_after))
         return sparsity_before, sparsity_after
 
 
