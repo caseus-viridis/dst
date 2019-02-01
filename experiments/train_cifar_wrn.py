@@ -124,6 +124,7 @@ logger.debug("Parameter count = {}".format(param_count(model)))
 def do_training(num_epochs=args.epochs):
     batch = batches_since_last_rp = 0
     for epoch in range(args.epochs):
+        scheduler.step(epoch)
         training_loss = 0.
         with pb_wrap(data.train) as loader:
             loader.set_description("Training epoch {:3d}".format(epoch))
@@ -133,8 +134,7 @@ def do_training(num_epochs=args.epochs):
                 training_loss += loss
                 batches_since_last_rp += 1
                 if batches_since_last_rp == rp_schedule(epoch):
-                    model.prune_by_threshold()
-                    model.reallocate_free_parameters()
+                    model.reparameterize()
                     batches_since_last_rp = 0
                 loader.set_postfix(
                     loss="\33[91m{:6.4f}\033[0m".format(loss))
@@ -151,7 +151,6 @@ def do_training(num_epochs=args.epochs):
 
 def train(x, y):
     model.train()
-    scheduler.step()
     x, y = x.cuda(), y.cuda()
     loss = loss_func(model(x), y)
     optimizer.zero_grad()

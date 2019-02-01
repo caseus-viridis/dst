@@ -216,6 +216,10 @@ class StructuredSparseParameter(nn.Module):
         sparsity_after = self.sparsity()
         return sparsity_before, sparsity_after
 
+    def shuffle_mask(self):
+        self.group_mask = self.group_mask[torch.randperm(self.groups.num_groups)]
+        self.compute_mask_()
+
     def prune_to_sparsity(self, sparsity, p=1):
         # Prune groups with smallest Lp-norm until at least sparsity
         self.compute_group_lp_(p=p)  # fresh computation of self.group_lp

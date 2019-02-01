@@ -10,7 +10,7 @@ from torch.optim import SGD
 from torch.optim.lr_scheduler import MultiStepLR, LambdaLR
 from data import CIFAR10, CIFAR100
 from dst.models import cifar_resnet
-from dst.reparameterization import get_sparse_param_stats, prune_or_grow_to_sparsity, prune_by_threshold
+# from dst.reparameterization import get_sparse_param_stats, prune_or_grow_to_sparsity, prune_by_threshold
 from dst.utils import param_count
 from pytorch_monitor import init_experiment, monitor_module
 
@@ -130,6 +130,7 @@ logger.debug("Parameter count = {}".format(param_count(model)))
 def do_training(num_epochs=args.epochs):
     batch = batches_since_last_rp = 0
     for epoch in range(args.epochs):
+        scheduler.step(epoch)
         training_loss = 0.
         with pb_wrap(data.train) as loader:
             loader.set_description("Training epoch {:3d}".format(epoch))
@@ -156,7 +157,6 @@ def do_training(num_epochs=args.epochs):
 
 def train(x, y):
     model.train()
-    scheduler.step()
     x, y = x.cuda(), y.cuda()
     loss = loss_func(model(x), y)
     optimizer.zero_grad()

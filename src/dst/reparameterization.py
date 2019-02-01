@@ -23,10 +23,15 @@ class DSModel(nn.Module):
         self.pruning_threshold = pruning_threshold
         self.update_stats(init=True)
         self.num_sparse_parameters = len(self.breakdown)
-        self.prune_or_grow_to_sparsity(sparsity=self.target_sparsity)
+        self.prune_or_grow_to_sparsity(sparsity=self.target_sparsity_in_sparse())
+        self.shuffle_structure()
+        # TODO: make this random pruning
 
     def forward(self, *args, **kwargs):
         return self.model(*args, **kwargs)
+
+    def target_sparsity_in_sparse(self):
+        return self.target_sparsity * self.np_total / self.np_sparse
 
     def sparse_parameters(self):
         # An iterator over sparse parameters
@@ -54,6 +59,10 @@ class DSModel(nn.Module):
         self.np_dense = self.np_total - self.np_sparse
         self.sparsity = float(self.np_sparse - self.np_nonzero) / self.np_total
 
+    def shuffle_structure(self):
+        for sp in self.sparse_parameters():
+            sp.shuffle_mask()
+
     def adjust_pruning_threshold(self, tolerance=0.1, gain=2.):
         # Adjust pruning threshold
         pruned_fraction = self.sparsity - self._sparsity
@@ -61,6 +70,8 @@ class DSModel(nn.Module):
             self.pruning_threshold *= 2.
         elif pruned_fraction > self.target_fraction_to_prune * (1 + tolerance):
             self.pruning_threshold /= 2.
+        tqdm.write("adjust_pruning_threshold: -> {:f}".format(
+            self.pruning_threshold))
 
     def prune_by_threshold(self, p=1):
         # Prune all sparse parameters by a global threshold on Lp-norm
@@ -72,11 +83,11 @@ class DSModel(nn.Module):
         tqdm.write("prune_by_threshold: {:6.4f} -> {:6.4f}".format(
             self._sparsity, self.sparsity
         ))
-        self.adjust_pruning_threshold()
         return changes
 
     def prune_or_grow_to_sparsity(self, sparsity, p=1):
         # Prune or grow all sparse parameters to a target sparsity
+        # NOTE: this is sparsity in all sparse parameters
         if isinstance(sparsity, float):
             sparsity = [sparsity] * self.num_sparse_parameters
         changes = {
@@ -100,3 +111,8 @@ class DSModel(nn.Module):
             G = [F * r / sum(R) for r in R] # number of growth (TODO: make it a general heuristic)
             S = [1. - (g + r) / n for g, r, n in zip(G, R, N)] # target sparsities
             return self.prune_or_grow_to_sparsity(sparsity=S, p=p)
+
+    def reparameterize(self):
+        self.prune_by_threshold()
+        self.adjust_pruning_threshold()
+        self.reallocate_free_parameters()
