@@ -127,7 +127,8 @@ def do_training(num_epochs=args.epochs):
         scheduler.step(epoch)
         training_loss = 0.
         with pb_wrap(data.train) as loader:
-            loader.set_description("Training epoch {:3d}".format(epoch))
+            loader.set_description("Training epoch {:3d}, lr = {:.4f}".format(
+            epoch, [pg['lr'] for pg in optimizer.param_groups][0]))
             for i, (x, y) in enumerate(loader):
                 batch += 1
                 loss = train(x, y)

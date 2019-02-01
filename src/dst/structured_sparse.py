@@ -263,8 +263,6 @@ class StructuredSparseParameter(nn.Module):
             sparsity_after = self.prune_to_sparsity(sparsity, p=p)
         elif sparsity_before > sparsity:
             sparsity_after = self.grow_to_sparsity(sparsity, reset_value=reset_value)
-        # print("Reparameterized from sparsity {} to {}".format(
-        #     sparsity_before, sparsity_after))
         return sparsity_before, sparsity_after
 
 
@@ -273,6 +271,7 @@ SparseParameter = lambda t: StructuredSparseParameter(
     dense=DenseParameter(t),
     grouping=ElementGrouping
 )
+
 
 if __name__=="__main__":
     # par = DenseParameter(torch.rand(8))

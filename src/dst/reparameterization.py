@@ -113,6 +113,7 @@ class DSModel(nn.Module):
             return self.prune_or_grow_to_sparsity(sparsity=S, p=p)
 
     def reparameterize(self):
+        # If following the paper, this is a whole-sale package to execute every few hundred batches
         self.prune_by_threshold()
         self.adjust_pruning_threshold()
         self.reallocate_free_parameters()
