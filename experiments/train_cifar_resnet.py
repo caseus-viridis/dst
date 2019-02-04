@@ -15,7 +15,7 @@ from dst.utils import param_count
 from pytorch_monitor import init_experiment, monitor_module
 
 parser = argparse.ArgumentParser(
-    description='CIFAR10 ResNet experiments')
+    description='CIFAR10/100 ResNet experiments')
 parser.add_argument(
     '-d', '--depth', type=int, default=110, help='depth of resnet (default: 110)')
 parser.add_argument(
@@ -50,12 +50,6 @@ parser.add_argument(
 parser.add_argument(
     '--gpu', default='0', type=str, help='id(s) for GPU(s) to use')
 parser.add_argument(
-    '-l',
-    '--log-file',
-    type=str,
-    default='log/' + os.path.splitext(os.path.split(__file__)[1])[0] + '.log',
-    help='log file')
-parser.add_argument(
     '-m',
     '--monitor',
     action='store_true',
@@ -68,13 +62,15 @@ logging.basicConfig(
     format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
     datefmt='%H:%M:%S',
     level=logging.DEBUG,
-    filename=args.log_file,
+    filename='./log/{}-resnet{:d}-{}.log'.format(
+        args.dataset, args.depth, "spatial_bottleneck"
+        if args.spatial_bottleneck else args.spatial_mask),
     filemode='a')
 
 # monitor
 if args.monitor:
     writer, config = init_experiment({
-        'title': "CIFAR10 ResNet experiments",
+        'title': "CIFAR ResNet experiments",
         'run_name': "{}-resnet{:d}-{}".format(args.dataset, args.depth,
             "spatial_bottleneck" if args.spatial_bottleneck else args.spatial_mask),
         'log_dir': './runs',
@@ -107,6 +103,7 @@ data = eval(args.dataset.upper())(
     batch_size=args.batch_size,
     shuffle=True)
 model = eval("cifar_resnet.resnet{:d}".format(args.depth))(
+    num_classes=100 if args.dataset == 'cifar100' else 10,
     spatial_bottleneck=args.spatial_bottleneck,
     spatial_mask=args.spatial_mask).cuda()
 loss_func = nn.CrossEntropyLoss().cuda()
@@ -140,8 +137,10 @@ def do_training(num_epochs=args.epochs):
                 training_loss += loss
                 batches_since_last_rp += 1
                 # if batches_since_last_rp == rp_schedule(epoch):
-                #     reparameterize(batch, epoch)
+                #     model.reparameterize()
                 #     batches_since_last_rp = 0
+                #     tqdm.write(model.stats_table.get_string())
+                #     tqdm.write(model.sum_table.get_string())
                 loader.set_postfix(
                     loss="\33[91m{:6.4f}\033[0m".format(loss))
         test_loss, correct = test()
@@ -182,17 +181,6 @@ def test():
                 total_size += x.shape[0]
     return total_loss / (batch + 1), correct / total_size
 
-
-def reparameterize(batch, epoch):
-    # prune_or_grow_to_sparsity(model, sparsity=0.9)
-    # n_total, n_dense, n_sparse, n_nonzero, sparsity, breakdown = get_sparse_param_stats(
-    #     model)
-    # tqdm.write("Total parameter count = {}".format(n_total))
-    # tqdm.write("Dense parameter count = {}".format(n_dense))
-    # tqdm.write("Sparse parameter count = {}".format(n_sparse))
-    # tqdm.write("Nonzero sparse parameter count = {}".format(n_nonzero))
-    # tqdm.write("Sparsity = {:6.4f}".format(sparsity))
-    pass
 
 if __name__ == "__main__":
     do_training()

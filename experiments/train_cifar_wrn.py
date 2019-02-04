@@ -15,7 +15,7 @@ from dst.utils import param_count
 from pytorch_monitor import init_experiment, monitor_module
 
 parser = argparse.ArgumentParser(
-    description='CIFAR10 WRN-28-D dynamic sparse training')
+    description='CIFAR10/100 WRN-28-D dynamic sparse training')
 parser.add_argument(
     '-w', '--width', type=int, default=2, help='width of WRN (default: 2)')
 parser.add_argument(
@@ -68,7 +68,7 @@ logging.basicConfig(
 # monitor
 if args.monitor:
     writer, config = init_experiment({
-        'title': "CIFAR10 WRN experiments",
+        'title': "CIFAR WRN experiments",
         'run_name': "{}-wrn{:d}".format(args.dataset, args.width),
         'log_dir': './runs',
         'random_seed': 7734
@@ -99,7 +99,10 @@ data = eval(args.dataset.upper())(
     batch_size=args.batch_size,
     shuffle=True)
 model = DSModel(
-    model=cifar_wrn.net(width=args.width, spatial_bottleneck=args.spatial_bottleneck),
+    model=cifar_wrn.net(
+        num_classes=100 if args.dataset=='cifar100' else 10,
+        width=args.width, 
+        spatial_bottleneck=args.spatial_bottleneck),
     target_sparsity=0.9
 ).cuda()
 loss_func = nn.CrossEntropyLoss().cuda()

@@ -66,7 +66,9 @@ class CIFAR(object):
             shuffle=shuffle,
             **gpu_conf)
         self.test = torch.utils.data.DataLoader(
-            datasets.CIFAR10(data_dir, train=False, transform=transform_test),
+            eval("datasets.CIFAR{:d}".format(num_classes))(
+                data_dir, train=False, download=True,
+                transform=transform_test),
             batch_size=batch_size,
             shuffle=False,
             **gpu_conf)
