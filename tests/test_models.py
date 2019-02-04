@@ -1,12 +1,8 @@
 import torch
 import torch.nn as nn
-from dst.models import (
-    mnist_mlp,
-    cifar_wrn,
-    cifar_resnet
-)
+from dst.models import (mnist_mlp, cifar_wrn, cifar_resnet)
 from dst.modules import DSConv2d
-from dst.reparameterization import param_count, get_sparse_param_stats
+from dst.reparameterization import DSModel
 from dst.utils import param_count
 
 # net = cifar10_wrn.net(width=2).cuda()
@@ -29,8 +25,7 @@ from dst.utils import param_count
 # model = cifar_resnet.resnet34(spatial_bottleneck=False)
 # model_ = cifar_resnet.resnet34(spatial_bottleneck=True)
 
-ca = nn.Conv2d(3, 64, kernel_size=5, stride=2, padding=2, bias=False)
+# ca = nn.Conv2d(3, 64, kernel_size=5, stride=2, padding=2, bias=False)
 
-x = torch.rand(16, 3, 32, 32)
+# x = torch.rand(16, 3, 32, 32)
 
-import ipdb; ipdb.set_trace()

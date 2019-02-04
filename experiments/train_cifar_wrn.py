@@ -68,9 +68,8 @@ logging.basicConfig(
 # monitor
 if args.monitor:
     writer, config = init_experiment({
-        'title': "CIFAR10 ResNet experiments",
-        'run_name': "{}-resnet{:d}-{}".format(args.dataset, args.depth,
-            "spatial_bottleneck" if args.spatial_bottleneck else args.spatial_mask),
+        'title': "CIFAR10 WRN experiments",
+        'run_name': "{}-wrn{:d}".format(args.dataset, args.width),
         'log_dir': './runs',
         'random_seed': 7734
     })
@@ -137,8 +136,9 @@ def do_training(num_epochs=args.epochs):
                 if batches_since_last_rp == rp_schedule(epoch):
                     model.reparameterize()
                     batches_since_last_rp = 0
-                loader.set_postfix(
-                    loss="\33[91m{:6.4f}\033[0m".format(loss))
+                    tqdm.write(model.stats_table.get_string())
+                    tqdm.write(model.sum_table.get_string())
+                loader.set_postfix(loss="\33[91m{:6.4f}\033[0m".format(loss))
         test_loss, correct = test()
         training_loss /= i + 1
         logger.debug(

@@ -242,7 +242,7 @@ class StructuredSparseParameter(nn.Module):
                 growth_mask[i].fill_(1)
                 self.compute_mask_()
             else:
-                # NOTE: This is a very hacky thing: clamp parameter values to reset_value for the newly grown weights, ONLY IF the underlying dense parameter is unstructured
+                # NOTE: What follows is a very hacky thing: clamp parameter values to reset_value for the newly grown weights, ONLY IF the underlying dense parameter is unstructured
                 if isinstance(self.dense, DenseParameter):
                     self.dense.clamp_values(
                         mask=self.groups.group_mask_expand(growth_mask),
