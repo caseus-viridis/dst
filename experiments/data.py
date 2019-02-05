@@ -44,10 +44,6 @@ class CIFAR(object):
             'num_workers': num_workers,
             'pin_memory': True
         } if cuda else {}
-        # normalize = transforms.Normalize(
-        #     mean=(0.4914, 0.4822, 0.4465),
-        #     std=(0.2023, 0.1994, 0.2010)
-        # )
         normalize = transforms.Normalize(
             np.array([125.3, 123.0, 113.9]) / 255.0,
             np.array([63.0, 62.1, 66.7]) / 255.0)
@@ -80,7 +76,7 @@ CIFAR100 = partial(CIFAR, num_classes=100)
 
 class I1K(object):
     def __init__(self,
-                 data_dir='./I1K/i1k-extracted',
+                 data_dir='./data/I1K/i1k-extracted',
                  cuda=False,
                  num_workers=4,
                  batch_size=32,

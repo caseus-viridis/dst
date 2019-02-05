@@ -49,7 +49,7 @@ class DSModel(nn.Module):
 
     def sparse_parameters(self):
         # An iterator over sparse parameters
-        for n, m in self.named_sparse_parameters():
+        for _, m in self.named_sparse_parameters():
             yield m
 
     def named_sparse_parameters(self):

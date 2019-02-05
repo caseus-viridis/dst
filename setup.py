@@ -16,7 +16,9 @@ setup(
         'torchvision',
         'numpy',
         'tqdm',
+        'python-dotenv',
         'pytorch-monitor',
+        'PTable',
     ),
 
     python_requires='>=3.4'
