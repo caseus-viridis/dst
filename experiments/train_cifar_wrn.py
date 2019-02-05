@@ -14,6 +14,7 @@ from dst.reparameterization import DSModel
 from dst.utils import param_count
 from pytorch_monitor import init_experiment, monitor_module
 
+
 parser = argparse.ArgumentParser(
     description='CIFAR10/100 WRN-28-D dynamic sparse training')
 parser.add_argument(
@@ -145,7 +146,7 @@ def do_training(num_epochs=args.epochs):
         test_loss, correct = test()
         training_loss /= i + 1
         logger.debug(
-            "Epoch {:3d}: training loss = \33[91m{:6.4f}\033[0m, test loss = \33[91m{:6.4f}\033[0m \tcorrect% = \33[92m{:5.2f}\033[0m"
+            "Epoch {:3d}: training loss = {:6.4f}, test loss = {:6.4f}, correct% = {:5.2f}"
             .format(epoch, training_loss, test_loss, correct * 100))
         if args.monitor:
             writer.add_scalar('training_loss', training_loss, epoch)

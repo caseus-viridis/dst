@@ -7,6 +7,48 @@ from .utils import param_count
 from prettytable import PrettyTable as pt
 
 
+class ReallocationHeuristics(object):
+    r"""
+    A collection of free parameter reallocation heuristics
+    A heuristic has the signature: gamma = heuristic(N, M, R), where
+        N is a list of total parameter counts of sparse parameters,
+        M is the counts of old non-zero parameters in each, and
+        R is the counts of new non-zero parameters in each;
+        it returns gamma, a list of fractions to reallocate outstanding free parameters, all elements in gamma should sum to 1.
+    """
+
+    @staticmethod
+    def R_p_sphere(N, M, R, p=1):
+        Rp = R ** p
+        return Rp / Rp.sum()
+
+    @staticmethod
+    def M_p_sphere(N, M, R, p=1):
+        Mp = M**p
+        return Mp / Mp.sum()
+
+    @staticmethod
+    def N_p_sphere(N, M, R, p=1):
+        Np = N**p
+        return Np / Np.sum()
+
+    @staticmethod
+    def K_p_sphere(N, M, R, p=1):
+        Kp = (M - R) ** p
+        return Kp / Kp.sum()
+
+    @staticmethod
+    def paper(N, M, R):
+        # Heuristic of Mostafa & Wang 2018a,b
+        # (https://openreview.net/pdf?id=S1xBioR5KX and https://openreview.net/pdf?id=BygIWTMdjX)
+        return ReallocationHeuristics.R_p_sphere(N, M, R, p=1)
+
+    @staticmethod
+    def within_param(N, M, R):
+        # Heuristic of no reallocation across parameter tensors, only within
+        return ReallocationHeuristics.K_p_sphere(N, M, R, p=1)
+
+
 class DSModel(nn.Module):
     r"""
     A dynamic sparse network wrapper for models with dynamic sparse parameters
@@ -132,20 +174,20 @@ class DSModel(nn.Module):
         # ))
         return changes
 
-    def reallocate_free_parameters(self, p=1, heuristic=None):
+    def reallocate_free_parameters(self, heuristic, p=1):
         # Reallocate parameters until model reaches at most a target sparsity
         if self.sparsity > self.target_sparsity: # only when there is free parameters to reallocate
-            N = [n for _, (_, n) in self.breakdown.items()]  # total non-zero parameter count
-            M = [m for _, (m, _) in self._breakdown.items()]  # old non-zero parameter count
-            # K = [_m - m for (_, (_m, _)), (_, (m, _)) in zip(self._breakdown.items(), self.breakdown.items())]
-            R = [r for _, (r, _) in self.breakdown.items()]  # numbers of surviving weights
+            N = torch.Tensor([n for _, (_, n) in self.breakdown.items()])  # total parameter count
+            M = torch.Tensor([m for _, (m, _) in self._breakdown.items()])  # old non-zero parameter count
+            # K = torch.Tensor([_m - m for (_, (_m, _)), (_, (m, _)) in zip(self._breakdown.items(), self.breakdown.items())])  # numbers of pruned weights
+            R = torch.Tensor([r for _, (r, _) in self.breakdown.items()])  # numbers of surviving weights, i.e. new non-zero parameter count
             F = self.np_total * (self.sparsity - self.target_sparsity) # number of free parameters
-            G = [F * r / sum(R) for r in R] # number of growth (TODO: make it a general heuristic)
-            S = [1. - (g + r) / n for g, r, n in zip(G, R, N)] # target sparsities
+            G = F * heuristic(N, M, R)  # number of growth
+            S = 1. - (G + R) / N # [1. - (g + r) / n for g, r, n in zip(G, R, N)] # target sparsities
             return self.prune_or_grow_to_sparsity(sparsity=S, p=p)
 
-    def reparameterize(self):
+    def reparameterize(self, heuristic=ReallocationHeuristics.paper, p=1):
         # Following our paper, this is a whole-sale package to execute every few hundred batches
-        self.prune_by_threshold()
+        self.prune_by_threshold(p=p)
         self.adjust_pruning_threshold()
-        self.reallocate_free_parameters()
+        self.reallocate_free_parameters(heuristic=heuristic, p=p)
