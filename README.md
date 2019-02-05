@@ -47,12 +47,12 @@ From lowest level up:
 - All dense reparameterization mechanisms are in `dst/structured_dense.py`.  
 - All sparse reparameterization mechanisms are in `dst/structured_sparse.py`.  The core low-level API is through a `StructuredSparseParameter` class that wraps a `StructuredDenseParameter` with a grouping mechanism.  
 - Basic modules with dynamic sparse parameters are implemented in `dst/modules.py`, such as `DSLinear` and `DSConv2d`.  
-- Models implementations are under `dst/models`.  
+- Model implementations are under `dst/models`.  
 - The core high-level API is via a `DSModel` class in `dst/reparameterization.py`.  See next section for usage with an example.  
 
 ## Example
 
-See `experiments/train_cifar_wrn.py` for a simple example as described in paper [Parameter efficient training of deep convolutional neural networks by dynamic sparse reparameterization](https://openreview.net/pdf?id=S1xBioR5KX).
+See `experiments/train_cifar_wrn.py` for a simple example as described in paper [Parameter efficient training of deep convolutional neural networks by dynamic sparse reparameterization (Mostafa & Wang 2018a)](https://openreview.net/pdf?id=S1xBioR5KX).
 
 The following run trains a wide ResNet `WRN-28-2` on CIFAR10:
 ```bash
@@ -69,7 +69,7 @@ At a highest level, one wraps a dynamic sparse model in a `DSModel` object like:
 from dst.reparameterization import DSModel
 
 model = DSModel(
-    model=my_dsmodel,
+    model=my_dynamic_sparse_model,
     target_sparsity=0.9
 )
 ```
