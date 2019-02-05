@@ -53,10 +53,16 @@ class SumGrouping(Grouping):
     def __init__(self, ga, gb):
         assert ga.shape==gb.shape, "shapes of groupings mismatch"
         super(SumGrouping, self).__init__(ga.shape)
+        self.ga = ga
+        self.gb = gb
 
     @property
     def num_groups(self):
         return ga.num_groups + gb.num_groups
+
+    @property
+    def group_sizes(self):
+        return torch.cat([self.ga.group_sizes(), self.ga.group_sizes()])
 
 
 class ProductGrouping(Grouping):
@@ -69,10 +75,16 @@ class ProductGrouping(Grouping):
     def __init__(self, ga, gb):
         assert ga.shape==gb.shape, "shapes of groupings mismatch"
         super(ProductGrouping, self).__init__(ga.shape)
+        self.ga = ga
+        self.gb = gb
 
     @property
     def num_groups(self):
         return ga.num_groups * gb.num_groups
+
+    @property
+    def group_sizes(self):
+        raise NotImplementedError
 
 
 class ElementGrouping(Grouping):
@@ -204,6 +216,17 @@ class StructuredSparseParameter(nn.Module):
 
     def forward(self):
         return self.dense() * self.mask.float()
+
+    def randomly_thin_to_group_sparsity(self, group_sparsity):
+        # randomly zero groups of weights to a group sparsity
+        self.group_mask.bernoulli_(p=1.-group_sparsity)
+        self.compute_mask_()
+
+    def randomly_thin_to_sparsity(self, sparsity):
+        # Randomly zero groups of weights until at least sparsity
+        # Idea: binary search to target sparsity
+        # TODO
+        pass
 
     def prune_by_threshold(self, threshold, p=1):
         r"""

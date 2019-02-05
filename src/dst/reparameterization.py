@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from .structured_sparse import StructuredSparseParameter
 from .utils import param_count
-from prettytable import PrettyTable
+from prettytable import PrettyTable as pt
 
 
 class DSModel(nn.Module):
@@ -22,24 +22,24 @@ class DSModel(nn.Module):
         self.target_sparsity = target_sparsity
         self.target_fraction_to_prune = target_fraction_to_prune
         self.pruning_threshold = pruning_threshold
-        self.stats_table = PrettyTable(field_names=[
-            'Parameter tensor',
-            '# total',
-            '# nonzero',
-            'sparsity'
-        ], float_format='.4', align='r')
-        self.sum_table = PrettyTable(field_names=[
-            '# total parameters',
-            '# sparse parameters',
-            '# dense parameters',
-            '# nonzero parameters in sparse',
-            'sparsity'
-        ], float_format='.4', align='r')
+        self.stats_table = pt(
+            field_names=[
+                'Parameter tensor', '# total', '# nonzero', 'sparsity'
+            ],
+            float_format='.4',
+            align='r')
+        self.sum_table = pt(
+            field_names=[
+                '# total parameters', '# sparse parameters',
+                '# dense parameters', '# nonzero parameters in sparse',
+                'sparsity'
+            ],
+            float_format='.4',
+            align='r')
         self.update_stats(init=True)
         self.num_sparse_parameters = len(self.breakdown)
-        self.prune_or_grow_to_sparsity(sparsity=self.target_sparsity_in_sparse())
-        self.shuffle_structure()
-        # TODO: make this random pruning
+        self.randomly_thin_to_group_sparsity(
+            group_sparsity=self.target_sparsity_in_sparse())
 
     def forward(self, *args, **kwargs):
         return self.model(*args, **kwargs)
@@ -80,7 +80,7 @@ class DSModel(nn.Module):
             ])
         self.sum_table.clear_rows()
         self.sum_table.add_row([
-            self.np_total, 
+            self.np_total,
             self.np_sparse,
             self.np_dense,
             self.np_nonzero,
@@ -91,6 +91,10 @@ class DSModel(nn.Module):
         for sp in self.sparse_parameters():
             sp.shuffle_mask()
 
+    def randomly_thin_to_group_sparsity(self, group_sparsity):
+        for sp in self.sparse_parameters():
+            sp.randomly_thin_to_group_sparsity(group_sparsity)
+
     def adjust_pruning_threshold(self, tolerance=0.1, gain=2.):
         # Adjust pruning threshold
         pruned_fraction = self.sparsity - self._sparsity
@@ -99,7 +103,7 @@ class DSModel(nn.Module):
         elif pruned_fraction > self.target_fraction_to_prune * (1 + tolerance):
             self.pruning_threshold /= 2.
         # tqdm.write("adjust_pruning_threshold: -> {:f}".format(
-            # self.pruning_threshold))
+        # self.pruning_threshold))
 
     def prune_by_threshold(self, p=1):
         # Prune all sparse parameters by a global threshold on Lp-norm
@@ -141,7 +145,7 @@ class DSModel(nn.Module):
             return self.prune_or_grow_to_sparsity(sparsity=S, p=p)
 
     def reparameterize(self):
-        # If following the paper, this is a whole-sale package to execute every few hundred batches
+        # Following our paper, this is a whole-sale package to execute every few hundred batches
         self.prune_by_threshold()
         self.adjust_pruning_threshold()
         self.reallocate_free_parameters()

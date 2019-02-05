@@ -10,10 +10,18 @@ __all__ = [
 
 
 def _get_spatial_mask(spatial_mask, dim):
-    if spatial_mask == 'sparse_fixed':
+    if spatial_mask == 'sparse_fixed_quarter':
         return SparseMask2d(dim=dim, sparsity=0.25, dynamic=False)
-    elif spatial_mask == 'sparse_dynamic':
+    elif spatial_mask == 'sparse_dynamic_quarter':
         return SparseMask2d(dim=dim, sparsity=0.25, dynamic=True)
+    if spatial_mask == 'sparse_fixed_half':
+        return SparseMask2d(dim=dim, sparsity=0.5, dynamic=False)
+    elif spatial_mask == 'sparse_dynamic_half':
+        return SparseMask2d(dim=dim, sparsity=0.5, dynamic=True)
+    if spatial_mask == 'sparse_fixed_three_quarters':
+        return SparseMask2d(dim=dim, sparsity=0.75, dynamic=False)
+    elif spatial_mask == 'sparse_dynamic_three_quarters':
+        return SparseMask2d(dim=dim, sparsity=0.75, dynamic=True)
     elif spatial_mask == 'checker_quarter':
         return CheckerMask2d(dim=dim, quarters=1)
     elif spatial_mask == 'checker_half':
