@@ -8,8 +8,8 @@ from .structured_dense import StructuredDenseParameter, DenseParameter
 class Grouping(object):
     r"""
     A grouping object responsible for two methods given a tensor shape:
-    - Reduction over groups, used to e.g. compute Lp-norm
-    - Expansion over groups, used to e.g. set group values to a specified value given a group mask (i.e. group pruning if the value is 0.)
+    - Lp-norm reduction over groups
+    - Mask expansion over groups
     """
     def __init__(self, size):
         self.shape = torch.Size(size)
@@ -64,6 +64,12 @@ class SumGrouping(Grouping):
     def group_sizes(self):
         return torch.cat([self.ga.group_sizes(), self.ga.group_sizes()])
 
+    def group_lp_reduce(self, p=1):
+        raise NotImplementedError
+
+    def group_mask_expand(self, group_mask):
+        raise NotImplementedError
+
 
 class ProductGrouping(Grouping):
     r"""
@@ -84,6 +90,12 @@ class ProductGrouping(Grouping):
 
     @property
     def group_sizes(self):
+        raise NotImplementedError
+
+    def group_lp_reduce(self, p=1):
+        raise NotImplementedError
+
+    def group_mask_expand(self, group_mask):
         raise NotImplementedError
 
 
@@ -286,6 +298,8 @@ class StructuredSparseParameter(nn.Module):
             sparsity_after = self.prune_to_sparsity(sparsity, p=p)
         elif sparsity_before > sparsity:
             sparsity_after = self.grow_to_sparsity(sparsity, reset_value=reset_value)
+        else:
+            sparsity_after = sparsity_before
         return sparsity_before, sparsity_after
 
 
