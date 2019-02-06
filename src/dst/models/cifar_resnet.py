@@ -43,7 +43,7 @@ class BasicBlock(nn.Module):
                  spatial_bottleneck=False,
                  spatial_mask=None):
         super(BasicBlock, self).__init__()
-        self.conv1 = nn.Conv2d(
+        self.conv1 = DSConv2d(
             in_planes,
             planes,
             kernel_size=3,
@@ -53,16 +53,15 @@ class BasicBlock(nn.Module):
         self.bn1 = nn.BatchNorm2d(planes)
         self.sm = _get_spatial_mask(
             spatial_mask, dim) if not spatial_bottleneck else nn.Sequential()
-        self.conv2 = nn.ConvTranspose2d(
+        self.conv2 = DSConvTranspose2d(
             planes,
             planes,
             kernel_size=3,
             stride=2,
             padding=1,
             output_padding=1,
-            bias=False
-        ) if spatial_bottleneck else nn.Conv2d(
-            planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
+            bias=False) if spatial_bottleneck else DSConv2d(
+                planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion * planes:
@@ -72,8 +71,7 @@ class BasicBlock(nn.Module):
                     self.expansion * planes,
                     kernel_size=1,
                     stride=stride,
-                    bias=False),
-                nn.BatchNorm2d(self.expansion * planes))
+                    bias=False), nn.BatchNorm2d(self.expansion * planes))
 
     def forward(self, x):
         out = F.relu(self.sm(self.bn1(self.conv1(x))))
@@ -99,10 +97,13 @@ class ResNet(nn.Module):
         self.conv1 = nn.Conv2d(
             3, 16, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(16)
-        self.layer1 = self._make_layer(block, 16, num_blocks[0], dim=dim, stride=1)
-        self.layer2 = self._make_layer(block, 32, num_blocks[1], dim=dim//2, stride=2)
-        self.layer3 = self._make_layer(block, 64, num_blocks[2], dim=dim//4, stride=2)
-        self.linear = nn.Linear(64*block.expansion, num_classes)
+        self.layer1 = self._make_layer(
+            block, 16, num_blocks[0], dim=dim, stride=1)
+        self.layer2 = self._make_layer(
+            block, 32, num_blocks[1], dim=dim // 2, stride=2)
+        self.layer3 = self._make_layer(
+            block, 64, num_blocks[2], dim=dim // 4, stride=2)
+        self.linear = nn.Linear(64 * block.expansion, num_classes)
 
     def _make_layer(self, block, planes, num_blocks, dim, stride):
         strides = [stride] + [1] * (num_blocks - 1)

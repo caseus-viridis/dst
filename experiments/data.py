@@ -116,12 +116,19 @@ class I1K(object):
             **gpu_conf)
 
 
-class PTB(object):
+class PennTreebank(object):
     def __init__(self,
-                 data_dir='./data/PennTreeBank',
+                 data_dir='~/data/PennTreebank',
                  cuda=False,
-                 num_workers=4,
                  batch_size=32,
-                 shuffle=True):
-        self.train = tt.datasets.PennTreebank(
-            data_dir, tt.data.Field(lower=True, batch_first=True))
+                 bptt_len=50):
+        self.train, self.val, self.test = tt.datasets.PennTreebank.splits(
+            text_field=tt.data.Field(unk_token=None, tokenize=lambda s: list(s)),
+            # batch_size=batch_size,
+            # bptt_len=bptt_len,
+            # device=None if cuda else -1
+        )
+
+
+if __name__ == "__main__":
+    pass

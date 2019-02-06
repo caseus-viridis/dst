@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import Parameter
+from .structured_dense import StructuredDenseParameter
 from .structured_sparse import StructuredSparseParameter, SparseParameter
 from .utils import _calculate_fan_in_and_fan_out_from_size, sparse_mask_2d, checker_mask_2d
 
@@ -240,7 +241,8 @@ class SpatialMask(nn.Module):
         self.shuffle = shuffle
 
     def reshuffle_mask_(self):
-        self.mask = self.mask.view(-1)[torch.randperm(self.mask.numel())].view_as(self.mask)
+        self.mask = self.mask.view(-1)[torch.randperm(
+            self.mask.numel())].view_as(self.mask)
 
     def forward(self, input):
         if self.shuffle:
@@ -263,3 +265,145 @@ SparseMask2d = lambda dim, sparsity=0.25, dynamic=False: SpatialMask(
     mask=sparse_mask_2d(dim, sparsity),
     shuffle=dynamic
 )
+
+
+class _DSRNNCellBase(_DSBase):
+    r"""
+    A dynamic sparse version of _RNNCellBase
+    """
+
+    def __init__(self, input_size, hidden_size, bias, num_chunks):
+        super(_DSRNNCellBase, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.bias = bias
+        self.weight_ih = SparseParameter(
+            torch.Tensor(num_chunks * hidden_size, input_size))
+        self.weight_hh = SparseParameter(
+            torch.Tensor(num_chunks * hidden_size, hidden_size))
+        if bias:
+            self.bias_ih = Parameter(torch.Tensor(num_chunks * hidden_size))
+            self.bias_hh = Parameter(torch.Tensor(num_chunks * hidden_size))
+        else:
+            self.register_parameter('bias_ih', None)
+            self.register_parameter('bias_hh', None)
+        self.reset_parameters()
+
+    def extra_repr(self):
+        s = '{input_size}, {hidden_size}'
+        if 'bias' in self.__dict__ and self.bias is not True:
+            s += ', bias={bias}'
+        if 'nonlinearity' in self.__dict__ and self.nonlinearity != "tanh":
+            s += ', nonlinearity={nonlinearity}'
+        return s.format(**self.__dict__)
+
+    def check_forward_input(self, input):
+        if input.size(1) != self.input_size:
+            raise RuntimeError(
+                "input has inconsistent input_size: got {}, expected {}".
+                format(input.size(1), self.input_size))
+
+    def check_forward_hidden(self, input, hx, hidden_label=''):
+        if input.size(0) != hx.size(0):
+            raise RuntimeError(
+                "Input batch size {} doesn't match hidden{} batch size {}".
+                format(input.size(0), hidden_label, hx.size(0)))
+
+        if hx.size(1) != self.hidden_size:
+            raise RuntimeError(
+                "hidden{} has inconsistent hidden_size: got {}, expected {}".
+                format(hidden_label, hx.size(1), self.hidden_size))
+
+    def reset_parameters(self):
+        stdv = 1.0 / math.sqrt(self.hidden_size)
+        for weight in self.parameters():
+            nn.init.uniform_(weight, -stdv, stdv)
+        for m in self.modules():
+            if isinstance(m, StructuredDenseParameter):
+                nn.init.uniform_(m.bank, -stdv, stdv)
+
+
+class DSRNNCell(_DSRNNCellBase):
+    r"""
+    A dynamic sparse version of RNNCell
+    """
+
+    def __init__(self, input_size, hidden_size, bias=True,
+                 nonlinearity="tanh"):
+        super(DSRNNCell, self).__init__(
+            input_size, hidden_size, bias, num_chunks=1)
+        self.nonlinearity = nonlinearity
+
+    def forward(self, input, hx=None):
+        self.check_forward_input(input)
+        if hx is None:
+            hx = input.new_zeros(
+                input.size(0), self.hidden_size, requires_grad=False)
+        self.check_forward_hidden(input, hx)
+        if self.nonlinearity == "tanh":
+            func = torch._C._VariableFunctions.rnn_tanh_cell
+        elif self.nonlinearity == "relu":
+            func = torch._C._VariableFunctions.rnn_relu_cell
+        else:
+            raise RuntimeError("Unknown nonlinearity: {}".format(
+                self.nonlinearity))
+        return func(
+            input,
+            hx,
+            self.weight_ih(),
+            self.weight_hh(),
+            self.bias_ih,
+            self.bias_hh,
+        )
+
+
+class DSLSTMCell(_DSRNNCellBase):
+    r"""
+    A dynamic sparse version of LSTMCell
+    """
+
+    def __init__(self, input_size, hidden_size, bias=True):
+        super(DSLSTMCell, self).__init__(
+            input_size, hidden_size, bias, num_chunks=4)
+
+    def forward(self, input, hx=None):
+        self.check_forward_input(input)
+        if hx is None:
+            hx = input.new_zeros(
+                input.size(0), self.hidden_size, requires_grad=False)
+            hx = (hx, hx)
+        self.check_forward_hidden(input, hx[0], '[0]')
+        self.check_forward_hidden(input, hx[1], '[1]')
+        return torch._C._VariableFunctions.lstm_cell(
+            input,
+            hx,
+            self.weight_ih(),
+            self.weight_hh(),
+            self.bias_ih,
+            self.bias_hh,
+        )
+
+
+class DSGRUCell(_DSRNNCellBase):
+    r"""
+    A dynamic sparse version of GRUCell
+    """
+
+    def __init__(self, input_size, hidden_size, bias=True):
+        super(DSGRUCell, self).__init__(
+            input_size, hidden_size, bias, num_chunks=3)
+
+    def forward(self, input, hx=None):
+        self.check_forward_input(input)
+        if hx is None:
+            hx = input.new_zeros(
+                input.size(0), self.hidden_size, requires_grad=False)
+        self.check_forward_hidden(input, hx)
+        return torch._C._VariableFunctions.gru_cell(
+            input,
+            hx,
+            self.weight_ih(),
+            self.weight_hh(),
+            self.bias_ih,
+            self.bias_hh,
+        )
