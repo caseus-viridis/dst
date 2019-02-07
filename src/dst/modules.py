@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torch.nn import Parameter
 from .structured_dense import StructuredDenseParameter
 from .structured_sparse import StructuredSparseParameter, SparseParameter
-from .utils import _calculate_fan_in_and_fan_out_from_size, sparse_mask_2d, checker_mask_2d
+from .utils import _calculate_fan_in_and_fan_out_from_size
 
 
 class _DSBase(nn.Module):
@@ -226,45 +226,6 @@ class DSConvTranspose2d(_DSConvTransposeMixin, _DSConvNd):
         return F.conv_transpose2d(input, self.weight(), self.bias, self.stride,
                                   self.padding, output_padding, self.groups,
                                   self.dilation)
-
-
-class SpatialMask(nn.Module):
-    r"""
-    A spatial mask layer
-        mask: a spatial multiplicative mask
-        shuffle: whether to shuffle mask each time like dropout
-    """
-
-    def __init__(self, mask, shuffle=False):
-        super(SpatialMask, self).__init__()
-        self.register_buffer('mask', mask)
-        self.shuffle = shuffle
-
-    def reshuffle_mask_(self):
-        self.mask = self.mask.view(-1)[torch.randperm(
-            self.mask.numel())].view_as(self.mask)
-
-    def forward(self, input):
-        if self.shuffle:
-            self.reshuffle_mask_()
-        if not self.training and self.shuffle:
-            return input * self.mask.float().mean()
-        else:
-            return input * self.mask.float()
-
-    def extra_repr(self):
-        return "size = {}".format(self.mask.shape)
-
-
-# aliases
-CheckerMask2d = lambda dim, quarters=1: SpatialMask(
-    mask=checker_mask_2d(dim, quarters),
-    shuffle=False
-)
-SparseMask2d = lambda dim, sparsity=0.25, dynamic=False: SpatialMask(
-    mask=sparse_mask_2d(dim, sparsity),
-    shuffle=dynamic
-)
 
 
 class _DSRNNCellBase(_DSBase):

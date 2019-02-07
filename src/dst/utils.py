@@ -30,12 +30,12 @@ def _calculate_fan_in_and_fan_out_from_size(sz):
         fan_out = num_output_fmaps * receptive_field_size
     return fan_in, fan_out
 
-def sparse_mask_2d(dim, sparsity=0.25):
+def sparse_mask_2d(dim, density=0.25):
     r"""
     A sparse 2D binary mask
     """
     mask = torch.ByteTensor(dim**2).zero_()
-    mask[:int(sparsity*dim**2)] = 1
+    mask[:int(density*dim**2)] = 1
     return mask[torch.randperm(dim**2)].view([dim, dim])
 
 def checker_mask_2d(dim, quarters=1):

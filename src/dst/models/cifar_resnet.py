@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from ..modules import DSConv2d, DSConvTranspose2d, CheckerMask2d, SparseMask2d
+from ..modules import DSConv2d, DSConvTranspose2d
+from ..activation_sparse import Checker2d, Sparse2d
 
 __all__ = [
     'ResNet', 'resnet20', 'resnet32', 'resnet44', 'resnet56', 'resnet110',
@@ -11,23 +12,23 @@ __all__ = [
 
 def _get_spatial_mask(spatial_mask, dim):
     if spatial_mask == 'sparse_fixed_quarter':
-        return SparseMask2d(dim=dim, sparsity=0.25, dynamic=False)
+        return Sparse2d(dim=dim, sparsity=0.25, dynamic=False)
     elif spatial_mask == 'sparse_dynamic_quarter':
-        return SparseMask2d(dim=dim, sparsity=0.25, dynamic=True)
+        return Sparse2d(dim=dim, sparsity=0.25, dynamic=True)
     if spatial_mask == 'sparse_fixed_half':
-        return SparseMask2d(dim=dim, sparsity=0.5, dynamic=False)
+        return Sparse2d(dim=dim, sparsity=0.5, dynamic=False)
     elif spatial_mask == 'sparse_dynamic_half':
-        return SparseMask2d(dim=dim, sparsity=0.5, dynamic=True)
+        return Sparse2d(dim=dim, sparsity=0.5, dynamic=True)
     if spatial_mask == 'sparse_fixed_three_quarters':
-        return SparseMask2d(dim=dim, sparsity=0.75, dynamic=False)
+        return Sparse2d(dim=dim, sparsity=0.75, dynamic=False)
     elif spatial_mask == 'sparse_dynamic_three_quarters':
-        return SparseMask2d(dim=dim, sparsity=0.75, dynamic=True)
+        return Sparse2d(dim=dim, sparsity=0.75, dynamic=True)
     elif spatial_mask == 'checker_quarter':
-        return CheckerMask2d(dim=dim, quarters=1)
+        return Checker2d(dim=dim, quarters=1)
     elif spatial_mask == 'checker_half':
-        return CheckerMask2d(dim=dim, quarters=2)
+        return Checker2d(dim=dim, quarters=2)
     elif spatial_mask == 'checker_three_quarters':
-        return CheckerMask2d(dim=dim, quarters=3)
+        return Checker2d(dim=dim, quarters=3)
     else:
         return nn.Sequential()
 

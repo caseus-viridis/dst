@@ -7,19 +7,16 @@ setup(
     author="Xin Wang",
     author_email="caseus.viridis@gmail.com",
     license="MIT",
-
     packages=find_packages('src', exclude=('tests', 'docs', 'experiments')),
     package_dir={'': 'src'},
-
     install_requires=(
         'torch',
         'torchvision',
+        'torchtext',
         'numpy',
         'tqdm',
         'python-dotenv',
         'pytorch-monitor',
         'PTable',
     ),
-
-    python_requires='>=3.4'
-)
+    python_requires='>=3.4')

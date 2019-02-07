@@ -1,4 +1,5 @@
 from dst.modules import *
+from dst.activation_sparse import *
 from dst.utils import *
 
 # m = DSConvTranspose2d(

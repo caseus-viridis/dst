@@ -1,14 +1,23 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from ..modules import DSConv2d, DSConvTranspose2d, CheckerMask2d, SparseMask2d
+from ..modules import DSConv2d, DSConvTranspose2d
+from ..activation_sparse import CheckerMask2d, SparseMask2d
 
 
 def _get_spatial_mask(spatial_mask, dim):
-    if spatial_mask == 'sparse_fixed':
+    if spatial_mask == 'sparse_fixed_quarter':
         return SparseMask2d(dim=dim, sparsity=0.25, dynamic=False)
-    elif spatial_mask == 'sparse_dynamic':
+    elif spatial_mask == 'sparse_dynamic_quarter':
         return SparseMask2d(dim=dim, sparsity=0.25, dynamic=True)
+    if spatial_mask == 'sparse_fixed_half':
+        return SparseMask2d(dim=dim, sparsity=0.5, dynamic=False)
+    elif spatial_mask == 'sparse_dynamic_half':
+        return SparseMask2d(dim=dim, sparsity=0.5, dynamic=True)
+    if spatial_mask == 'sparse_fixed_three_quarters':
+        return SparseMask2d(dim=dim, sparsity=0.75, dynamic=False)
+    elif spatial_mask == 'sparse_dynamic_three_quarters':
+        return SparseMask2d(dim=dim, sparsity=0.75, dynamic=True)
     elif spatial_mask == 'checker_quarter':
         return CheckerMask2d(dim=dim, quarters=1)
     elif spatial_mask == 'checker_half':
@@ -85,13 +94,13 @@ class Bottleneck(nn.Module):
         self.conv2 = nn.Sequential(
             nn.Conv2d(
                 planes,
-                planes,
+                planes//2,
                 kernel_size=3,
                 stride=2 * stride,
                 padding=1,
                 bias=False),
             nn.ConvTranspose2d(
-                planes,
+                planes//2,
                 planes,
                 kernel_size=3,
                 stride=2,
