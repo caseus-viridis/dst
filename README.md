@@ -1,6 +1,6 @@
 # Dynamic sparse training
 
-Training models with dynamic sparse parameters in pytorch
+Training models with dynamic sparse parameters/activations in pytorch
 
 ## Setup
 
@@ -32,10 +32,12 @@ In the following we list the low-level contents of the pack for developers.  For
 ```
 src/dst
 ├── models
+│   ├── char_rnn.py
 │   ├── cifar_resnet.py
 │   ├── cifar_wrn.py
 │   ├── i1k_resnet.py
 │   └── mnist_mlp.py
+├── activation_sparse.py
 ├── modules.py
 ├── reparameterization.py
 ├── structured_dense.py
@@ -43,6 +45,10 @@ src/dst
 └── utils.py
 ```
 
+### Activation sparsity 
+- All mechanisms that induce/handle activation sparsity are in `dst/activation_sparse.py`.
+
+### Weight sparsity 
 From lowest level up:
 - All dense reparameterization mechanisms are in `dst/structured_dense.py`.  
 - All sparse reparameterization mechanisms are in `dst/structured_sparse.py`.  The core low-level API is through a `StructuredSparseParameter` class that wraps a `StructuredDenseParameter` with a grouping mechanism.  
@@ -50,7 +56,17 @@ From lowest level up:
 - Model implementations are under `dst/models`.  
 - The core high-level API is via a `DSModel` class in `dst/reparameterization.py`.  See next section for usage with an example.  
 
-## Example
+
+## Examples
+
+### Training with dynamic sparse activations
+
+A comparison of [Spatial bottleneck (SB) ResNet (Peng et al. 2018)](http://arxiv.org/abs/1809.02601) (i.e. structured spatial sparsity) against static/dynamic non-structured spatial sparsity.
+```bash
+python experiments/train_cifar_resnet.py -ds (cifar10|cifar100) -d (20|32|44|56|110) -sb (structured|static|dynamic) -q (1|2|3)
+```
+
+### Training with dynamic sparse weights
 
 See `experiments/train_cifar_wrn.py` for a simple example as described in paper [Parameter efficient training of deep convolutional neural networks by dynamic sparse reparameterization (Mostafa & Wang 2018a)](https://openreview.net/pdf?id=S1xBioR5KX).
 
@@ -60,7 +76,15 @@ python experiments/train_cifar_wrn.py -ds cifar10 -w2
 ```
 > **NOTE**: GPU required.
 
-# General usage of the `dst` pack
+## General usage of the `dst` pack
+
+### Activation sparsity
+
+`dst.activation_sparse.SparseActivation` provides a base class for imposed activation sparsity through static or dynamic binary masking (i.e. input a dense activation tensor and output a sparse one), together with functionalities such as inspecting sparsity for book-keeping and Lp-norm computation that can be used for sparsity-inducing regularization.  
+
+For example of handling sparse activations see `dst.activation_sparse.SparseBatchNorm`, which wraps a `SparseActivation` appending a batch-normalization operation after sparsification that only normalize non-zero elements.  
+
+### Weight sparsity
 
 Look into `experiments/train_cifar_wrn.py` for basic usage of dynamic sparse reparameterization as described in [Mostafa & Wang 2018a](https://openreview.net/pdf?id=S1xBioR5KX) and [2018b](https://openreview.net/pdf?id=BygIWTMdjX).  
 
@@ -129,4 +153,4 @@ To experiment with these steps separately call `model.prune_by_threshold()`, `mo
 +---------------------------------+---------+-----------+----------+
 ```
 
-Just like `torch.nn.module.parameters()` and `torch.nn.module.named_parameters()`, one uses `DSModel.sparse_parameters()` and `DSModel.named_sparse_parameters()` to get iterators over all sparse parameter tensors for custom inspections and manipulations.  
+Just like `torch.nn.Module.parameters()` and `torch.nn.Module.named_parameters()`, `DSModel` provides `DSModel.sparse_parameters()` and `DSModel.named_sparse_parameters()` to iterate over all sparse parameter tensors for custom inspections and manipulations.  
