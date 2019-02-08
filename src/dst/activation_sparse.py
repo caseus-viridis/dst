@@ -65,12 +65,9 @@ class SparseBatchNorm(nn.Module):
             output = self.bn(input.view(*input.shape[:2], -1))
         else:
             output = self.sparse_activation(input).view(*input.shape[:2], -1)
-            if self.training:
+            if self.training or not self.sparse_activation.dynamic:
                 ix = self.sparse_activation.mask.view(-1)
                 output[..., ix] = self.bn(output[..., ix])
-            else:
-                if self.sparse_activation.dynamic: # gnarly situation of scaling back spatial dropout for inference
-                    output = self.bn(input.view(*input.shape[:2], -1)) * (1. - self.sparse_activation.sparsity())
-                else:
-                    output = self.bn(output)
+            else:  # gnarly situation of scaling back spatial dropout for inference
+                output = self.bn(input.view(*input.shape[:2], -1)) * (1. - self.sparse_activation.sparsity())
         return output.view_as(input)
