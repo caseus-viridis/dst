@@ -5,7 +5,7 @@ setup(
     version="0.0.2.dev",
     description="Dynamic sparse training tools in PyTorch",
     author="Xin Wang",
-    author_email="xin@cerebras.net",
+    author_email="caseus_viridis@gmail.com",
     license="MIT",
     packages=find_packages('src', exclude=('tests', 'docs', 'experiments')),
     package_dir={'': 'src'},
