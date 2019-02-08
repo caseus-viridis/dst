@@ -70,38 +70,34 @@ class Bottleneck(nn.Module):
                  spatial_bottleneck=None,
                  density=0.5):
         super(Bottleneck, self).__init__()
+        sb = _spatial_bottleneck_activation(spatial_bottleneck, density, dim)
         self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Sequential(
+        self.conv2 = nn.Conv2d(
+            planes,
+            planes,
+            kernel_size=3,
+            stride=stride,
+            padding=1,
+            bias=False
+        ) if sb is None else nn.Sequential(
             nn.Conv2d(
                 planes,
                 planes//2,
                 kernel_size=3,
-                stride=2 * stride,
+                stride=2,
                 padding=1,
                 bias=False),
-            nn.ConvTranspose2d(
+            sb,
+            nn.Conv2d(
                 planes//2,
                 planes,
                 kernel_size=3,
                 stride=2,
                 padding=1,
-                output_padding=1,
                 bias=False)
-        ) if spatial_bottleneck else nn.Conv2d(
-                planes,
-                planes,
-                kernel_size=3,
-                stride=stride,
-                padding=1,
-                bias=False)
+        )
         self.bn2 = nn.BatchNorm2d(planes)
-        self.sm = nn.Sequential(
-            _get_spatial_mask(spatial_mask, dim),
-            nn.Conv2d(
-                planes, planes, kernel_size=3, stride=1, padding=1,
-                bias=False)
-        ) if not spatial_bottleneck else nn.Sequential()
         self.conv3 = nn.Conv2d(
             planes, self.expansion * planes, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(self.expansion * planes)
@@ -118,7 +114,7 @@ class Bottleneck(nn.Module):
 
     def forward(self, x):
         out = F.relu(self.bn1(self.conv1(x)))
-        out = F.relu(self.bn2(self.sm(self.conv2(out))))
+        out = F.relu(self.bn2(self.conv2(out)))
         out = self.bn3(self.conv3(out))
         out += self.shortcut(x)
         out = F.relu(out)
@@ -131,11 +127,11 @@ class ResNet(nn.Module):
                  num_blocks,
                  dim=64,
                  num_classes=1000,
-                 spatial_bottleneck=False,
-                 spatial_mask=None):
+                 spatial_bottleneck=None,
+                 density=0.5):
         super(ResNet, self).__init__()
         self.spatial_bottleneck = spatial_bottleneck
-        self.spatial_mask = spatial_mask
+        self.density = density
         self.in_planes = 64
 
         self.conv1 = nn.Conv2d(
@@ -178,41 +174,41 @@ class ResNet(nn.Module):
         return out
 
 
-def resnet18(num_classes=1000, spatial_bottleneck=False, spatial_mask=None):
+def resnet18(num_classes=1000, spatial_bottleneck=None, density=0.5):
     return ResNet(
         BasicBlock, [2, 2, 2, 2],
         num_classes=num_classes,
         spatial_bottleneck=spatial_bottleneck,
-        spatial_mask=spatial_mask)
+        density=density)
 
 
-def resnet34(num_classes=1000, spatial_bottleneck=False, spatial_mask=None):
+def resnet34(num_classes=1000, spatial_bottleneck=None, density=0.5):
     return ResNet(
         BasicBlock, [3, 4, 6, 3],
         num_classes=num_classes,
         spatial_bottleneck=spatial_bottleneck,
-        spatial_mask=spatial_mask)
+        density=density)
 
 
-def resnet50(num_classes=1000, spatial_bottleneck=False, spatial_mask=None):
+def resnet50(num_classes=1000, spatial_bottleneck=None, density=0.5):
     return ResNet(
         Bottleneck, [3, 4, 6, 3],
         num_classes=num_classes,
         spatial_bottleneck=spatial_bottleneck,
-        spatial_mask=spatial_mask)
+        density=density)
 
 
-def resnet101(num_classes=1000, spatial_bottleneck=False, spatial_mask=None):
+def resnet101(num_classes=1000, spatial_bottleneck=None, density=0.5):
     return ResNet(
         Bottleneck, [3, 4, 23, 3],
         num_classes=num_classes,
         spatial_bottleneck=spatial_bottleneck,
-        spatial_mask=spatial_mask)
+        density=density)
 
 
-def resnet152(num_classes=1000, spatial_bottleneck=False, spatial_mask=None):
+def resnet152(num_classes=1000, spatial_bottleneck=None, density=0.5):
     return ResNet(
         Bottleneck, [3, 8, 36, 3],
         num_classes=num_classes,
         spatial_bottleneck=spatial_bottleneck,
-        spatial_mask=spatial_mask)
+        density=density)

@@ -52,9 +52,11 @@ class SparseBatchNorm(nn.Module):
     r"""
     A batchnorm following a sparse activation (i.e. perform normalization on only the non-zero components)
     """
+
     def __init__(self, num_features, sparse_activation=None):
         super(SparseBatchNorm, self).__init__()
-        assert sparse_activation is None or isinstance(sparse_activation, SparseActivation)
+        assert sparse_activation is None or isinstance(sparse_activation,
+                                                       SparseActivation)
         self.sparse_activation = sparse_activation
         self.bn = nn.BatchNorm1d(num_features)
 
@@ -67,5 +69,8 @@ class SparseBatchNorm(nn.Module):
                 ix = self.sparse_activation.mask.view(-1)
                 output[..., ix] = self.bn(output[..., ix])
             else:
-                output = self.bn(output)
+                if self.sparse_activation.dynamic: # gnarly situation of scaling back spatial dropout for inference
+                    output = self.bn(input.view(*input.shape[:2], -1)) * (1. - self.sparse_activation.sparsity())
+                else:
+                    output = self.bn(output)
         return output.view_as(input)
