@@ -177,7 +177,7 @@ def test():
             for batch, (x, y) in enumerate(loader):
                 x, y = x.cuda(), y.cuda()
                 _y = model(x)
-                loss = loss_func(model(x), y)
+                loss = loss_func(_y, y)
                 total_loss += loss.item()
                 pred = _y.max(1, keepdim=True)[1]
                 correct += pred.eq(y.view_as(pred)).sum().item()
