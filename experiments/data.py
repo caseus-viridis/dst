@@ -122,13 +122,16 @@ class PennTreebank(object):
                  cuda=False,
                  batch_size=32,
                  bptt_len=50):
+        self.text = tt.data.Field(tokenize=lambda s: list(s)) # character-level tokenization
         self.train, self.val, self.test = tt.datasets.PennTreebank.splits(
-            text_field=tt.data.Field(unk_token=None, tokenize=lambda s: list(s)),
+            text_field=self.text,
             # batch_size=batch_size,
             # bptt_len=bptt_len,
             # device=None if cuda else -1
         )
+        self.text.build_vocab(self.train)
 
 
 if __name__ == "__main__":
-    pass
+    ptb = PennTreebank()
+    import ipdb; ipdb.set_trace()

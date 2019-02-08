@@ -141,9 +141,9 @@ class DSModel(nn.Module):
         # Adjust pruning threshold
         pruned_fraction = self.sparsity - self._sparsity
         if pruned_fraction < self.target_fraction_to_prune * (1 - tolerance):
-            self.pruning_threshold *= 2.
+            self.pruning_threshold *= gain
         elif pruned_fraction > self.target_fraction_to_prune * (1 + tolerance):
-            self.pruning_threshold /= 2.
+            self.pruning_threshold /= gain
         # tqdm.write("adjust_pruning_threshold: -> {:f}".format(
         # self.pruning_threshold))
 
