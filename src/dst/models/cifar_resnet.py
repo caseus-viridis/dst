@@ -2,35 +2,25 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from ..modules import DSConv2d, DSConvTranspose2d
-from ..activation_sparse import Checker2d, Sparse2d
+from ..activation_sparse import Checker2d, Sparse2d, SparseBatchNorm
 
 __all__ = [
     'ResNet', 'resnet20', 'resnet32', 'resnet44', 'resnet56', 'resnet110',
     'resnet1202'
 ]
 
-
-def _get_spatial_mask(spatial_mask, dim):
-    if spatial_mask == 'sparse_fixed_quarter':
-        return Sparse2d(dim=dim, sparsity=0.25, dynamic=False)
-    elif spatial_mask == 'sparse_dynamic_quarter':
-        return Sparse2d(dim=dim, sparsity=0.25, dynamic=True)
-    if spatial_mask == 'sparse_fixed_half':
-        return Sparse2d(dim=dim, sparsity=0.5, dynamic=False)
-    elif spatial_mask == 'sparse_dynamic_half':
-        return Sparse2d(dim=dim, sparsity=0.5, dynamic=True)
-    if spatial_mask == 'sparse_fixed_three_quarters':
-        return Sparse2d(dim=dim, sparsity=0.75, dynamic=False)
-    elif spatial_mask == 'sparse_dynamic_three_quarters':
-        return Sparse2d(dim=dim, sparsity=0.75, dynamic=True)
-    elif spatial_mask == 'checker_quarter':
-        return Checker2d(dim=dim, quarters=1)
-    elif spatial_mask == 'checker_half':
-        return Checker2d(dim=dim, quarters=2)
-    elif spatial_mask == 'checker_three_quarters':
-        return Checker2d(dim=dim, quarters=3)
+def _spatial_bottleneck_activation(spatial_bottleneck, density, dim):
+    assert density in (0.25, 0.5, 0.75)
+    if spatial_bottleneck == 'none':
+        return None
+    elif spatial_bottleneck == 'structured':
+        return Checker2d(dim=dim, quarters=int(density*4))
+    elif spatial_bottleneck == 'static':
+        return Sparse2d(dim=dim, density=density, dynamic=False)
+    elif spatial_bottleneck == 'dynamic':
+        return Sparse2d(dim=dim, density=density, dynamic=True)
     else:
-        return nn.Sequential()
+        raise RuntimeError('Wrong spatial_bottleneck configuration')
 
 
 class BasicBlock(nn.Module):
@@ -41,28 +31,15 @@ class BasicBlock(nn.Module):
                  in_planes,
                  planes,
                  stride=1,
-                 spatial_bottleneck=False,
-                 spatial_mask=None):
+                 spatial_bottleneck=None,
+                 density=0.5):
         super(BasicBlock, self).__init__()
-        self.conv1 = DSConv2d(
-            in_planes,
-            planes,
-            kernel_size=3,
-            stride=stride * 2 if spatial_bottleneck else stride,
-            padding=1,
-            bias=False)
-        self.bn1 = nn.BatchNorm2d(planes)
-        self.sm = _get_spatial_mask(
-            spatial_mask, dim) if not spatial_bottleneck else nn.Sequential()
-        self.conv2 = DSConvTranspose2d(
-            planes,
-            planes,
-            kernel_size=3,
-            stride=2,
-            padding=1,
-            output_padding=1,
-            bias=False) if spatial_bottleneck else DSConv2d(
-                planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(
+            in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.bn1 = SparseBatchNorm(planes,
+            _spatial_bottleneck_activation(spatial_bottleneck, density, dim))
+        self.conv2 = nn.Conv2d(
+            planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion * planes:
@@ -75,7 +52,7 @@ class BasicBlock(nn.Module):
                     bias=False), nn.BatchNorm2d(self.expansion * planes))
 
     def forward(self, x):
-        out = F.relu(self.sm(self.bn1(self.conv1(x))))
+        out = F.relu(self.bn1(self.conv1(x)))
         out = self.bn2(self.conv2(out))
         out += self.shortcut(x)
         out = F.relu(out)
@@ -88,11 +65,11 @@ class ResNet(nn.Module):
                  num_blocks,
                  dim=32,
                  num_classes=10,
-                 spatial_bottleneck=False,
-                 spatial_mask=None):
+                 spatial_bottleneck=None,
+                 density=0.5):
         super(ResNet, self).__init__()
         self.spatial_bottleneck = spatial_bottleneck
-        self.spatial_mask = spatial_mask
+        self.density = density
         self.in_planes = 16
 
         self.conv1 = nn.Conv2d(
@@ -117,7 +94,7 @@ class ResNet(nn.Module):
                     planes,
                     stride,
                     spatial_bottleneck=self.spatial_bottleneck,
-                    spatial_mask=self.spatial_mask))
+                    density=self.density))
             self.in_planes = planes * block.expansion
         return nn.Sequential(*layers)
 
@@ -132,49 +109,49 @@ class ResNet(nn.Module):
         return out
 
 
-def resnet20(num_classes=10, spatial_bottleneck=False, spatial_mask=None):
+def resnet20(num_classes=10, spatial_bottleneck=None, density=0.5):
     return ResNet(
         BasicBlock, [3, 3, 3],
         num_classes=num_classes,
         spatial_bottleneck=spatial_bottleneck,
-        spatial_mask=spatial_mask)
+        density=density)
 
 
-def resnet32(num_classes=10, spatial_bottleneck=False, spatial_mask=None):
+def resnet32(num_classes=10, spatial_bottleneck=None, density=0.5):
     return ResNet(
         BasicBlock, [5, 5, 5],
         num_classes=num_classes,
         spatial_bottleneck=spatial_bottleneck,
-        spatial_mask=spatial_mask)
+        density=density)
 
 
-def resnet44(num_classes=10, spatial_bottleneck=False, spatial_mask=None):
+def resnet44(num_classes=10, spatial_bottleneck=None, density=0.5):
     return ResNet(
         BasicBlock, [7, 7, 7],
         num_classes=num_classes,
         spatial_bottleneck=spatial_bottleneck,
-        spatial_mask=spatial_mask)
+        density=density)
 
 
-def resnet56(num_classes=10, spatial_bottleneck=False, spatial_mask=None):
+def resnet56(num_classes=10, spatial_bottleneck=None, density=0.5):
     return ResNet(
         BasicBlock, [9, 9, 9],
         num_classes=num_classes,
         spatial_bottleneck=spatial_bottleneck,
-        spatial_mask=spatial_mask)
+        density=density)
 
 
-def resnet110(num_classes=10, spatial_bottleneck=False, spatial_mask=None):
+def resnet110(num_classes=10, spatial_bottleneck=None, density=0.5):
     return ResNet(
         BasicBlock, [18, 18, 18],
         num_classes=num_classes,
         spatial_bottleneck=spatial_bottleneck,
-        spatial_mask=spatial_mask)
+        density=density)
 
 
-def resnet1202(num_classes=10, spatial_bottleneck=False, spatial_mask=None):
+def resnet1202(num_classes=10, spatial_bottleneck=None, density=0.5):
     return ResNet(
         BasicBlock, [200, 200, 200],
         num_classes=num_classes,
         spatial_bottleneck=spatial_bottleneck,
-        spatial_mask=spatial_mask)
+        density=density)

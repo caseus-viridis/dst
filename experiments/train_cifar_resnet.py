@@ -39,14 +39,15 @@ parser.add_argument(
 parser.add_argument(
     '-sb',
     '--spatial-bottleneck',
-    action='store_true',
-    help='Spatial bottleneck architecture (default: False)')
-parser.add_argument(
-    '-sm',
-    '--spatial-mask',
     type=str,
-    default='orig',
-    help='Spatial mask as an alternative as bottleneck (default: orig)')
+    default='none',
+    help='Spatial bottleneck sparsification: structured, static, dynamic or none (default: none)')
+parser.add_argument(
+    '-q',
+    '--quarters',
+    type=int,
+    default=2,
+    help='In case of spatial bottleneck sparsity, density of activation in quarters (default: 2)')
 parser.add_argument(
     '--gpu', default='0', type=str, help='id(s) for GPU(s) to use')
 parser.add_argument(
@@ -55,6 +56,11 @@ parser.add_argument(
     action='store_true',
     help='monitoring or not (default: False)')
 args = parser.parse_args()
+run_name = "{}-resnet{:d}-sb_{}{}".format(
+    args.dataset, args.depth,
+    args.spatial_bottleneck,
+    "" if args.spatial_bottleneck=='none' else "-q{:d}".format(args.quarters)
+)
 
 #  logger
 logger = logging.getLogger(__name__)
@@ -62,17 +68,14 @@ logging.basicConfig(
     format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
     datefmt='%H:%M:%S',
     level=logging.DEBUG,
-    filename='./log/{}-resnet{:d}-{}.log'.format(
-        args.dataset, args.depth, "spatial_bottleneck"
-        if args.spatial_bottleneck else args.spatial_mask),
+    filename='./log/{}.log'.format(run_name),
     filemode='a')
 
 # monitor
 if args.monitor:
     writer, config = init_experiment({
         'title': "CIFAR ResNet experiments",
-        'run_name': "{}-resnet{:d}-{}".format(args.dataset, args.depth,
-            "spatial_bottleneck" if args.spatial_bottleneck else args.spatial_mask),
+        'run_name': run_name,
         'log_dir': './runs',
         'random_seed': 7734
     })
@@ -105,7 +108,7 @@ data = eval(args.dataset.upper())(
 model = eval("cifar_resnet.resnet{:d}".format(args.depth))(
     num_classes=100 if args.dataset == 'cifar100' else 10,
     spatial_bottleneck=args.spatial_bottleneck,
-    spatial_mask=args.spatial_mask).cuda()
+    density=0.25*args.quarters).cuda()
 loss_func = nn.CrossEntropyLoss().cuda()
 optimizer = SGD(
     model.parameters(),

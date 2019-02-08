@@ -30,7 +30,7 @@ def _calculate_fan_in_and_fan_out_from_size(sz):
         fan_out = num_output_fmaps * receptive_field_size
     return fan_in, fan_out
 
-def sparse_mask_2d(dim, density=0.25):
+def sparse_mask_2d(dim, density=0.5):
     r"""
     A sparse 2D binary mask
     """

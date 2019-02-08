@@ -2,30 +2,25 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from ..modules import DSConv2d, DSConvTranspose2d
-from ..activation_sparse import CheckerMask2d, SparseMask2d
+from ..activation_sparse import Checker2d, Sparse2d, SparseBatchNorm
+
+__all__ = [
+    'ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'
+]
 
 
-def _get_spatial_mask(spatial_mask, dim):
-    if spatial_mask == 'sparse_fixed_quarter':
-        return SparseMask2d(dim=dim, sparsity=0.25, dynamic=False)
-    elif spatial_mask == 'sparse_dynamic_quarter':
-        return SparseMask2d(dim=dim, sparsity=0.25, dynamic=True)
-    if spatial_mask == 'sparse_fixed_half':
-        return SparseMask2d(dim=dim, sparsity=0.5, dynamic=False)
-    elif spatial_mask == 'sparse_dynamic_half':
-        return SparseMask2d(dim=dim, sparsity=0.5, dynamic=True)
-    if spatial_mask == 'sparse_fixed_three_quarters':
-        return SparseMask2d(dim=dim, sparsity=0.75, dynamic=False)
-    elif spatial_mask == 'sparse_dynamic_three_quarters':
-        return SparseMask2d(dim=dim, sparsity=0.75, dynamic=True)
-    elif spatial_mask == 'checker_quarter':
-        return CheckerMask2d(dim=dim, quarters=1)
-    elif spatial_mask == 'checker_half':
-        return CheckerMask2d(dim=dim, quarters=2)
-    elif spatial_mask == 'checker_three_quarters':
-        return CheckerMask2d(dim=dim, quarters=3)
+def _spatial_bottleneck_activation(spatial_bottleneck, density, dim):
+    assert density in (0.25, 0.5, 0.75)
+    if spatial_bottleneck == 'none':
+        return None
+    elif spatial_bottleneck == 'structured':
+        return Checker2d(dim=dim, quarters=int(density * 4))
+    elif spatial_bottleneck == 'static':
+        return Sparse2d(dim=dim, density=density, dynamic=False)
+    elif spatial_bottleneck == 'dynamic':
+        return Sparse2d(dim=dim, density=density, dynamic=True)
     else:
-        return nn.Sequential()
+        raise RuntimeError('Wrong spatial_bottleneck configuration')
 
 
 class BasicBlock(nn.Module):
@@ -36,29 +31,15 @@ class BasicBlock(nn.Module):
                  in_planes,
                  planes,
                  stride=1,
-                 spatial_bottleneck=False,
-                 spatial_mask=None):
+                 spatial_bottleneck=None,
+                 density=0.5):
         super(BasicBlock, self).__init__()
         self.conv1 = nn.Conv2d(
-            in_planes,
-            planes,
-            kernel_size=3,
-            stride=2 * stride if spatial_bottleneck else stride,
-            padding=1,
-            bias=False)
-        self.bn1 = nn.BatchNorm2d(planes)
-        self.sm = _get_spatial_mask(
-            spatial_mask, dim) if not spatial_bottleneck else nn.Sequential()
-        self.conv2 = nn.ConvTranspose2d(
-            planes,
-            planes,
-            kernel_size=3,
-            stride=2,
-            padding=1,
-            output_padding=1,
-            bias=False
-        ) if spatial_bottleneck else nn.Conv2d(
-                planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
+            in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.bn1 = SparseBatchNorm(planes,
+            _spatial_bottleneck_activation(spatial_bottleneck, density, dim))
+        self.conv2 = nn.Conv2d(
+            planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion * planes:
@@ -71,7 +52,7 @@ class BasicBlock(nn.Module):
                     bias=False), nn.BatchNorm2d(self.expansion * planes))
 
     def forward(self, x):
-        out = F.relu(self.sm(self.bn1(self.conv1(x))))
+        out = F.relu(self.bn1(self.conv1(x)))
         out = self.bn2(self.conv2(out))
         out += self.shortcut(x)
         out = F.relu(out)
@@ -86,8 +67,8 @@ class Bottleneck(nn.Module):
                  in_planes,
                  planes,
                  stride=1,
-                 spatial_bottleneck=False,
-                 spatial_mask=None):
+                 spatial_bottleneck=None,
+                 density=0.5):
         super(Bottleneck, self).__init__()
         self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
@@ -191,7 +172,7 @@ class ResNet(nn.Module):
         out = self.layer2(out)
         out = self.layer3(out)
         out = self.layer4(out)
-        out = F.avg_pool2d(out, 8)
+        out = F.avg_pool2d(out, out.size()[3])
         out = out.view(out.size(0), -1)
         out = self.linear(out)
         return out

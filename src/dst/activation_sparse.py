@@ -15,6 +15,7 @@ class SparseActivation(nn.Module):
         super(SparseActivation, self).__init__()
         self.register_buffer('mask', mask)
         self.dynamic = dynamic
+        self.dense_inference = dense_inference
 
     def reshuffle_mask_(self):
         self.mask = self.mask.view(-1)[torch.randperm(
@@ -51,15 +52,20 @@ class SparseBatchNorm(nn.Module):
     r"""
     A batchnorm following a sparse activation (i.e. perform normalization on only the non-zero components)
     """
-    def __init__(self, num_features, sparse_activation):
+    def __init__(self, num_features, sparse_activation=None):
         super(SparseBatchNorm, self).__init__()
-        assert isinstance(sparse_activation, SparseActivation)
+        assert sparse_activation is None or isinstance(sparse_activation, SparseActivation)
         self.sparse_activation = sparse_activation
         self.bn = nn.BatchNorm1d(num_features)
 
     def forward(self, input):
-        output = self.sparse_activation(input).view(*input.shape[:2], -1)
-        ix = self.sparse_activation.mask.view(-1)
-        output[..., ix] = self.bn(output[..., ix])
+        if self.sparse_activation is None:
+            output = self.bn(input.view(*input.shape[:2], -1))
+        else:
+            output = self.sparse_activation(input).view(*input.shape[:2], -1)
+            if self.training:
+                ix = self.sparse_activation.mask.view(-1)
+                output[..., ix] = self.bn(output[..., ix])
+            else:
+                output = self.bn(output)
         return output.view_as(input)
-        
