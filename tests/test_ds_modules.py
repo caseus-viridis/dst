@@ -9,12 +9,9 @@ from dst.utils import *
 #     stride=2,
 #     padding=1
 # )
+# m = SpatialMask(sparse_mask_2d(16), shuffle=True)
+# x = torch.rand(1, 1, 16, 16)
 
-m = SpatialMask(sparse_mask_2d(16), shuffle=True)
-x = torch.rand(1, 1, 16, 16)
-
-print(m(x))
-print(m(x))
 
 # TODO: Tests for DSLinear
 

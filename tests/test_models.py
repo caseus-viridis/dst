@@ -44,9 +44,8 @@ from dst.activation_sparse import *
 # y = F.conv2d(x, k, stride=1, padding=1)
 # z = F.conv2d(x, k, stride=2, padding=1)
 
-bn = SparseBatchNorm(16, Checker2d(4, quarters=2))
-x = torch.rand(1, 16, 4, 4)
-y = bn(x)
+# bn = SparseBatchNorm(16, Checker2d(4, quarters=2))
+# x = torch.rand(1, 16, 4, 4)
+# y = bn(x)
 
-
-import ipdb; ipdb.set_trace()
+# TODO: Write some meaningful unit tests

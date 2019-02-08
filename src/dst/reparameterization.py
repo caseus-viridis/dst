@@ -186,7 +186,7 @@ class DSModel(nn.Module):
             S = 1. - (G + R) / N # [1. - (g + r) / n for g, r, n in zip(G, R, N)] # target sparsities
             return self.prune_or_grow_to_sparsity(sparsity=S, p=p)
 
-    def reparameterize(self, heuristic=ReallocationHeuristics.within_param, p=1):
+    def reparameterize(self, heuristic=ReallocationHeuristics.paper, p=1):
         # Following our paper, this is a whole-sale package to execute every few hundred batches
         self.prune_by_threshold(p=p)
         self.adjust_pruning_threshold()
