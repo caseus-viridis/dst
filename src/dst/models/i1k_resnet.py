@@ -85,7 +85,7 @@ class Bottleneck(nn.Module):
                 planes,
                 planes//2,
                 kernel_size=3,
-                stride=2,
+                stride=stride,
                 padding=1,
                 bias=False),
             sb,
@@ -93,7 +93,7 @@ class Bottleneck(nn.Module):
                 planes//2,
                 planes,
                 kernel_size=3,
-                stride=2,
+                stride=1,
                 padding=1,
                 bias=False)
         )

@@ -123,9 +123,8 @@ scheduler = MultiStepLR(optimizer, milestones=[200, 300], gamma=0.1)
 #     400 if epoch >=  80 else 0,
 #     800 if epoch >= 140 else 0
 # ])
-logger.debug(model)  # print the model description
-logger.debug("Parameter count = {}".format(param_count(model)))
-
+print(model)  # print the model description
+print("Parameter count = {}".format(param_count(model)))
 
 def do_training(num_epochs=args.epochs):
     batch = batches_since_last_rp = 0

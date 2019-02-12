@@ -74,7 +74,7 @@ class DSModel(nn.Module):
             field_names=[
                 '# total parameters', '# sparse parameters',
                 '# dense parameters', '# nonzero parameters in sparse',
-                'sparsity'
+                '# free parameters', 'sparsity'
             ],
             float_format='.4',
             align='r')
@@ -113,6 +113,7 @@ class DSModel(nn.Module):
         self.np_nonzero = sum([_n for _, (_n, _) in self.breakdown.items()])
         self.np_sparse = sum([_n for _, (_, _n) in self.breakdown.items()])
         self.np_dense = self.np_total - self.np_sparse
+        self.np_free = self.np_dense + self.np_nonzero
         self.sparsity = float(self.np_sparse - self.np_nonzero) / self.np_total
         # update tables
         self.stats_table.clear_rows()
@@ -126,8 +127,11 @@ class DSModel(nn.Module):
             self.np_sparse,
             self.np_dense,
             self.np_nonzero,
+            self.np_free,
             self.sparsity
         ])
+        temp = self.model.tail.weight.mask
+        import ipdb; ipdb.set_trace()
 
     def shuffle_structure(self):
         for sp in self.sparse_parameters():

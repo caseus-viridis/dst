@@ -48,6 +48,24 @@ parser.add_argument(
     default=50,
     help='sequence length for BPTT (default: 50)')
 parser.add_argument(
+    '-s',
+    '--sparsification',
+    type=str,
+    default='none',
+    help='sparsification method, none, comp, or dst (default: none)')
+parser.add_argument(
+    '-q',
+    '--pct90',
+    type=float,
+    default=0.1,
+    help='in the case of compression, the `q` parameter in Narang et al. 2017a,b (default: 0.1)')
+parser.add_argument(
+    '-ts',
+    '--target-sparsity',
+    type=float,
+    default=0.5,
+    help='in the case of DST, the target overall sparsity as in Mostafa & Wang 2018a,b (default: 0.5)')
+parser.add_argument(
     '-z',
     '--batch-size',
     type=int,
@@ -74,6 +92,16 @@ parser.add_argument(
     help='monitoring or not (default: False)')
 args = parser.parse_args()
 
+# run name
+if args.sparsification=='comp': # compression
+    method_str = "-{}-q{}".format(args.sparsification, args.pct90)
+elif args.sparsification=='dst':
+    method_str = "-{}-s{}".format(args.sparsification, args.target_sparsity)
+else:
+    method_str = ""
+run_name = "{}-{}-h{:d}-d{:d}".format(
+    args.dataset, args.cell_type, args.hidden_size, args.depth) + method_str
+
 #  logger
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -87,9 +115,9 @@ logging.basicConfig(
 if args.monitor:
     writer, config = init_experiment({
         'title': "Character RNN experiments",
-        'run_name': "{}-{}-{:d}".format(args.dataset, args.cell, args.hidden_size),
-        'log_dir': './runs',
-        'random_seed': 7734
+        'run_name': run_name,
+        'log_dir': './rnn_runs',
+        'random_seed': 7743
     })
 
 # progress bar
@@ -127,47 +155,85 @@ model = DSModel(
         cell_type=args.cell_type,
         device=device
     ),
-    target_sparsity=0.5,
+    target_sparsity=args.target_sparsity if args.sparsification=='dst' else 0.,
     target_fraction_to_prune=1e-2,
-    pruning_threshold=1e-3
+    pruning_threshold=1e-2 if args.sparsification=='dst' else -1.
 ).to(device)
 loss_func = nn.CrossEntropyLoss().to(device)
-optimizer = RMSprop(model.parameters(), weight_decay=1e-4, lr=2e-3)
-rp_schedule = lambda epoch: max([
-    100 if epoch >=   0 else 0,
-    200 if epoch >=  10 else 0,
-    400 if epoch >=  20 else 0,
-    800 if epoch >=  30 else 0,
-    1600 if epoch >=  40 else 0
-])/2
+optimizer = RMSprop(model.parameters(),
+    weight_decay=1e-5,
+    lr=2e-3)
+if args.sparsification=='dst':
+    rp_schedule = lambda epoch: max([
+        100 if epoch >=   0 else 0,
+        200 if epoch >=  10 else 0,
+        400 if epoch >=  20 else 0,
+        800 if epoch >=  30 else 0,
+        1e9 if epoch >=  40 else 0
+    ]) 
+else: # elif args.sparsification=='comp':
+    rp_schedule = lambda epoch: max([
+        100 if epoch >= 0 else 0,
+        1e9 if epoch >= args.epochs//2 else 0
+    ])
 print(model)  # print the model description
 print("Parameter count = {}".format(param_count(model)))
+
+# Pruning threshold schedule as in Narang et al. 2017a,b
+BATCHES_PER_EPOCH = 798
+FREQ = 100
+def get_pruning_threshold(itr,
+                          q=args.pct90,
+                          freq=FREQ,
+                          start_itr=BATCHES_PER_EPOCH,
+                          ramp_itr=BATCHES_PER_EPOCH * args.epochs // 4,
+                          end_itr=BATCHES_PER_EPOCH * args.epochs // 2):
+    theta = 2. * q * freq / (2. * (ramp_itr - start_itr) + 3. * (end_itr - ramp_itr))
+    phi = 1.5 * theta
+    if itr >= start_itr and itr < ramp_itr:
+        return theta * (itr - start_itr + 1) / freq
+    elif itr >= ramp_itr and itr < end_itr:
+        return (theta * (ramp_itr - start_itr + 1) + phi * (itr - ramp_itr + 1)) / freq
+    else:
+        return -1.
 
 def do_training(num_epochs=args.epochs):
     batch = batches_since_last_rp = 0
     for epoch in range(args.epochs):
         training_loss = 0.
         with pb_wrap(data.train) as loader:
-            loader.set_description("Training epoch {:2d}, theta = {:.4f}".format(epoch, model.pruning_threshold))
-            for batch, seq in enumerate(loader):
-                batch += 1
+            loader.set_description("Training epoch {:2d}".format(epoch))
+            for ix, seq in enumerate(loader):
                 loss = train(seq.text, seq.target)
                 training_loss += loss
-                batches_since_last_rp += 1
                 if batches_since_last_rp == rp_schedule(epoch):
-                    model.reparameterize()
-                    batches_since_last_rp = 0
+                    if args.sparsification=='comp':
+                        model.pruning_threshold = get_pruning_threshold(batch)
+                        if model.pruning_threshold > 0:
+                            model.prune_by_threshold()
+                    elif args.sparsification=='dst':
+                        model.reparameterize()
+                    tqdm.write("BATCH #{:d}".format(batch))
                     tqdm.write(model.stats_table.get_string())
                     tqdm.write(model.sum_table.get_string())
-                loader.set_postfix(loss="\33[91m{:6.4f}\033[0m".format(loss))
+                    if args.monitor:
+                        writer.add_scalar('model.sparsity', model.sparsity, batch)
+                        writer.add_scalar('model.np_free', model.np_free, batch)
+                    batches_since_last_rp = 0
+                batch += 1
+                batches_since_last_rp += 1
+                loader.set_postfix(loss="\33[91m{:6.4f}\033[0m".format(loss),
+                    pruning_threshold="\33[91m{:10.8f}\033[0m".format(model.pruning_threshold))
         val_loss = val()
-        training_loss /= batch + 1
+        training_loss /= ix + 1
         print(
             "Epoch {:3d}: training loss = {:6.4f}, validation loss = {:6.4f}"
             .format(epoch, training_loss, val_loss))
         if args.monitor:
-            writer.add_scalar('training_loss', training_loss, epoch)
-            writer.add_scalar('val_loss', val_loss, epoch)
+            writer.add_scalar('training_loss', training_loss, batch)
+            writer.add_scalar('val_loss', val_loss, batch)
+            writer.add_scalar('model.np_free', model.np_free, batch)
+            writer.add_scalar('model.sparsity', model.sparsity, batch)
 
 
 def train(x, y):

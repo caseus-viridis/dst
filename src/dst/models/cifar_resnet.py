@@ -6,7 +6,7 @@ from ..activation_sparse import Checker2d, Sparse2d, SparseBatchNorm
 
 __all__ = [
     'ResNet', 'resnet20', 'resnet32', 'resnet44', 'resnet56', 'resnet110',
-    'resnet1202'
+    'resnet1202', 'resnet29', 'resnet162'
 ]
 
 def _spatial_bottleneck_activation(spatial_bottleneck, density, dim):
@@ -54,6 +54,65 @@ class BasicBlock(nn.Module):
     def forward(self, x):
         out = F.relu(self.bn1(self.conv1(x)))
         out = self.bn2(self.conv2(out))
+        out += self.shortcut(x)
+        out = F.relu(out)
+        return out
+
+
+class Bottleneck(nn.Module):
+    expansion = 4
+
+    def __init__(self,
+                 dim,
+                 in_planes,
+                 planes,
+                 stride=1,
+                 spatial_bottleneck=None,
+                 density=0.5):
+        super(Bottleneck, self).__init__()
+        sb = _spatial_bottleneck_activation(spatial_bottleneck, density, dim)
+        self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = nn.Conv2d(
+            planes,
+            planes,
+            kernel_size=3,
+            stride=stride,
+            padding=1,
+            bias=False) if sb is None else nn.Sequential(
+                nn.Conv2d(
+                    planes,
+                    planes // 2,
+                    kernel_size=3,
+                    stride=stride,
+                    padding=1,
+                    bias=False), sb,
+                nn.Conv2d(
+                    planes // 2,
+                    planes,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                    bias=False))
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv3 = nn.Conv2d(
+            planes, self.expansion * planes, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(self.expansion * planes)
+
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_planes != self.expansion * planes:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(
+                    in_planes,
+                    self.expansion * planes,
+                    kernel_size=1,
+                    stride=stride,
+                    bias=False), nn.BatchNorm2d(self.expansion * planes))
+
+    def forward(self, x):
+        out = F.relu(self.bn1(self.conv1(x)))
+        out = F.relu(self.bn2(self.conv2(out)))
+        out = self.bn3(self.conv3(out))
         out += self.shortcut(x)
         out = F.relu(out)
         return out
@@ -117,6 +176,14 @@ def resnet20(num_classes=10, spatial_bottleneck=None, density=0.5):
         density=density)
 
 
+def resnet29(num_classes=10, spatial_bottleneck=None, density=0.5):
+    return ResNet(
+        Bottleneck, [3, 3, 3],
+        num_classes=num_classes,
+        spatial_bottleneck=spatial_bottleneck,
+        density=density)
+
+
 def resnet32(num_classes=10, spatial_bottleneck=None, density=0.5):
     return ResNet(
         BasicBlock, [5, 5, 5],
@@ -144,6 +211,14 @@ def resnet56(num_classes=10, spatial_bottleneck=None, density=0.5):
 def resnet110(num_classes=10, spatial_bottleneck=None, density=0.5):
     return ResNet(
         BasicBlock, [18, 18, 18],
+        num_classes=num_classes,
+        spatial_bottleneck=spatial_bottleneck,
+        density=density)
+
+
+def resnet162(num_classes=10, spatial_bottleneck=None, density=0.5):
+    return ResNet(
+        Bottleneck, [18, 18, 18],
         num_classes=num_classes,
         spatial_bottleneck=spatial_bottleneck,
         density=density)
