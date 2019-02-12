@@ -127,17 +127,19 @@ model = DSModel(
         cell_type=args.cell_type,
         device=device
     ),
-    target_sparsity=0.5
+    target_sparsity=0.5,
+    target_fraction_to_prune=1e-2,
+    pruning_threshold=1e-3
 ).to(device)
 loss_func = nn.CrossEntropyLoss().to(device)
-optimizer = RMSprop(model.parameters(), lr=2e-3)
+optimizer = RMSprop(model.parameters(), weight_decay=1e-4, lr=2e-3)
 rp_schedule = lambda epoch: max([
-    50  if epoch >=   0 else 0,
-    100 if epoch >=  10 else 0,
-    200 if epoch >=  20 else 0,
-    400 if epoch >=  30 else 0,
-    800 if epoch >=  40 else 0
-])
+    100 if epoch >=   0 else 0,
+    200 if epoch >=  10 else 0,
+    400 if epoch >=  20 else 0,
+    800 if epoch >=  30 else 0,
+    1600 if epoch >=  40 else 0
+])/2
 print(model)  # print the model description
 print("Parameter count = {}".format(param_count(model)))
 
@@ -146,7 +148,7 @@ def do_training(num_epochs=args.epochs):
     for epoch in range(args.epochs):
         training_loss = 0.
         with pb_wrap(data.train) as loader:
-            loader.set_description("Training epoch {:2d}".format(epoch))
+            loader.set_description("Training epoch {:2d}, theta = {:.4f}".format(epoch, model.pruning_threshold))
             for batch, seq in enumerate(loader):
                 batch += 1
                 loss = train(seq.text, seq.target)

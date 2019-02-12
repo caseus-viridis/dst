@@ -382,5 +382,8 @@ class DSGRUCell(_DSRNNCellBase):
             self.weight_hh(),
             self.bias_ih,
             self.bias_hh,
+
         )
         return output, state
+
+        
