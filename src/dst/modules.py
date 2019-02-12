@@ -283,6 +283,16 @@ class _DSRNNCellBase(_DSBase):
             if isinstance(m, StructuredDenseParameter):
                 nn.init.uniform_(m.bank, -stdv, stdv)
 
+    def zero_state(self, batch_size=1, device='cpu'):
+        if isinstance(self, (DSRNNCell, DSGRUCell)):
+            return torch.zeros(batch_size, self.hidden_size).to(device)
+        elif isinstance(self, (DSLSTMCell)):
+            return (torch.zeros(batch_size, self.hidden_size).to(device),
+                    torch.zeros(batch_size, self.hidden_size).to(device))
+        else:
+            raise RuntimeError(
+                "zero_state() not implemented for {}".format(self))
+
 
 class DSRNNCell(_DSRNNCellBase):
     r"""
@@ -308,7 +318,7 @@ class DSRNNCell(_DSRNNCellBase):
         else:
             raise RuntimeError("Unknown nonlinearity: {}".format(
                 self.nonlinearity))
-        return func(
+        state = output = func(
             input,
             hx,
             self.weight_ih(),
@@ -316,6 +326,7 @@ class DSRNNCell(_DSRNNCellBase):
             self.bias_ih,
             self.bias_hh,
         )
+        return output, state
 
 
 class DSLSTMCell(_DSRNNCellBase):
@@ -335,7 +346,7 @@ class DSLSTMCell(_DSRNNCellBase):
             hx = (hx, hx)
         self.check_forward_hidden(input, hx[0], '[0]')
         self.check_forward_hidden(input, hx[1], '[1]')
-        return torch._C._VariableFunctions.lstm_cell(
+        h_, c_ = torch._C._VariableFunctions.lstm_cell(
             input,
             hx,
             self.weight_ih(),
@@ -343,6 +354,10 @@ class DSLSTMCell(_DSRNNCellBase):
             self.bias_ih,
             self.bias_hh,
         )
+
+        output = h_
+        state = (h_, c_)
+        return output, state
 
 
 class DSGRUCell(_DSRNNCellBase):
@@ -360,7 +375,7 @@ class DSGRUCell(_DSRNNCellBase):
             hx = input.new_zeros(
                 input.size(0), self.hidden_size, requires_grad=False)
         self.check_forward_hidden(input, hx)
-        return torch._C._VariableFunctions.gru_cell(
+        state = output = torch._C._VariableFunctions.gru_cell(
             input,
             hx,
             self.weight_ih(),
@@ -368,3 +383,4 @@ class DSGRUCell(_DSRNNCellBase):
             self.bias_ih,
             self.bias_hh,
         )
+        return output, state

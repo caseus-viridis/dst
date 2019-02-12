@@ -118,20 +118,23 @@ class I1K(object):
 
 class PennTreebank(object):
     def __init__(self,
-                 data_dir='~/data/PennTreebank',
-                 cuda=False,
+                 data_dir='./data/PennTreebank',
+                 device='cpu',
                  batch_size=32,
                  bptt_len=50):
-        self.text = tt.data.Field(tokenize=lambda s: list(s)) # character-level tokenization
-        self.train, self.val, self.test = tt.datasets.PennTreebank.splits(
+        self.text = tt.data.Field(tokenize=lambda s: list(s), batch_first=True) # character-level tokenization
+        train, val, test = tt.datasets.PennTreebank.splits(
             text_field=self.text,
-            # batch_size=batch_size,
-            # bptt_len=bptt_len,
-            # device=None if cuda else -1
+            root=data_dir
         )
-        self.text.build_vocab(self.train)
+        self.text.build_vocab(train)
+        self.vocab_size = len(self.text.vocab)
+        self.train, self.val, self.test = tt.data.BPTTIterator.splits(
+            (train, val, test),
+            batch_size=batch_size,
+            bptt_len=bptt_len,
+            device=device)
 
 
 if __name__ == "__main__":
-    ptb = PennTreebank()
-    import ipdb; ipdb.set_trace()
+    pass
