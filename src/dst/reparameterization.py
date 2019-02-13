@@ -5,6 +5,7 @@ import torch.nn as nn
 from .structured_sparse import StructuredSparseParameter
 from .utils import param_count
 from prettytable import PrettyTable as pt
+from .visualization import mask2braille
 
 
 class ReallocationHeuristics(object):
@@ -66,7 +67,7 @@ class DSModel(nn.Module):
         self.pruning_threshold = pruning_threshold
         self.stats_table = pt(
             field_names=[
-                'Parameter tensor', '# total', '# nonzero', 'sparsity'
+                'Parameter tensor', '# total', '# nonzero', 'sparsity' # , 'snapshot'
             ],
             float_format='.4',
             align='r')
@@ -105,22 +106,28 @@ class DSModel(nn.Module):
         if not init:  # keep previous stats
             self._breakdown = self.breakdown.copy()
             self._sparsity = self.sparsity
+
         self.breakdown = {
             n: m.param_count()
             for n, m in self.named_sparse_parameters()
         }
+        self.stats_table.clear_rows()
+        # for n, m in self.named_sparse_parameters():
+        #     _nz, _tot = self.breakdown[n]
+        #     self.stats_table.add_row([
+        #         n, _tot, _nz, 1. - _nz/_tot, mask2braille(m.mask)
+        #     ])
+        for n, (_nz, _tot) in self.breakdown.items():
+            self.stats_table.add_row([
+                n, _tot, _nz, 1. - _nz/_tot
+            ])
+
         self.np_total = param_count(self.model)
         self.np_nonzero = sum([_n for _, (_n, _) in self.breakdown.items()])
         self.np_sparse = sum([_n for _, (_, _n) in self.breakdown.items()])
         self.np_dense = self.np_total - self.np_sparse
         self.np_free = self.np_dense + self.np_nonzero
         self.sparsity = float(self.np_sparse - self.np_nonzero) / self.np_total
-        # update tables
-        self.stats_table.clear_rows()
-        for n, (_nz, _tot) in self.breakdown.items():
-            self.stats_table.add_row([
-                n, _tot, _nz, 1. - _nz/_tot
-            ])
         self.sum_table.clear_rows()
         self.sum_table.add_row([
             self.np_total,
@@ -130,8 +137,6 @@ class DSModel(nn.Module):
             self.np_free,
             self.sparsity
         ])
-        temp = self.model.tail.weight.mask
-        import ipdb; ipdb.set_trace()
 
     def shuffle_structure(self):
         for sp in self.sparse_parameters():

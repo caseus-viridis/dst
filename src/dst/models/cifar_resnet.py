@@ -19,6 +19,8 @@ def _spatial_bottleneck_activation(spatial_bottleneck, density, dim):
         return Sparse2d(dim=dim, density=density, dynamic=False)
     elif spatial_bottleneck == 'dynamic':
         return Sparse2d(dim=dim, density=density, dynamic=True)
+    elif spatial_bottleneck == 'hardshrink':
+        return nn.Hardshrink(lambd=density)
     else:
         raise RuntimeError('Wrong spatial_bottleneck configuration')
 
@@ -36,7 +38,7 @@ class BasicBlock(nn.Module):
         super(BasicBlock, self).__init__()
         self.conv1 = nn.Conv2d(
             in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
-        self.bn1 = SparseBatchNorm(planes,
+        self.bn1 = nn.BatchNorm2d(planes) if spatial_bottleneck=='hardshrink' else SparseBatchNorm(planes,
             _spatial_bottleneck_activation(spatial_bottleneck, density, dim))
         self.conv2 = nn.Conv2d(
             planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
@@ -86,7 +88,8 @@ class Bottleneck(nn.Module):
                     kernel_size=3,
                     stride=stride,
                     padding=1,
-                    bias=False), sb,
+                    bias=False), 
+                sb,
                 nn.Conv2d(
                     planes // 2,
                     planes,

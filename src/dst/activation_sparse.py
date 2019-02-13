@@ -3,7 +3,7 @@ import torch.nn as nn
 from .utils import _calculate_fan_in_and_fan_out_from_size, sparse_mask_2d, checker_mask_2d
 
 
-class SparseActivation(nn.Module):
+class MaskedActivation(nn.Module):
     r"""
     A sparse activation tensor
         mask: a spatial multiplicative mask
@@ -12,7 +12,7 @@ class SparseActivation(nn.Module):
     """
 
     def __init__(self, mask, dynamic=False, dense_inference=False):
-        super(SparseActivation, self).__init__()
+        super(MaskedActivation, self).__init__()
         self.register_buffer('mask', mask)
         self.dynamic = dynamic
         self.dense_inference = dense_inference
@@ -37,11 +37,11 @@ class SparseActivation(nn.Module):
 
 
 # aliases
-Checker2d = lambda dim, quarters=1: SparseActivation(
+Checker2d = lambda dim, quarters=1: MaskedActivation(
     mask=checker_mask_2d(dim, quarters),
     dynamic=False
 )
-Sparse2d = lambda dim, density=0.5, dynamic=False: SparseActivation(
+Sparse2d = lambda dim, density=0.5, dynamic=False: MaskedActivation(
     mask=sparse_mask_2d(dim, density),
     dynamic=dynamic,
     dense_inference=dynamic
@@ -56,7 +56,7 @@ class SparseBatchNorm(nn.Module):
     def __init__(self, num_features, sparse_activation=None):
         super(SparseBatchNorm, self).__init__()
         assert sparse_activation is None or isinstance(sparse_activation,
-                                                       SparseActivation)
+                                                       MaskedActivation)
         self.sparse_activation = sparse_activation
         self.bn = nn.BatchNorm1d(num_features)
 
@@ -71,3 +71,5 @@ class SparseBatchNorm(nn.Module):
             else:  # gnarly situation of scaling back spatial dropout for inference
                 output = self.bn(input.view(*input.shape[:2], -1)) * (1. - self.sparse_activation.sparsity())
         return output.view_as(input)
+
+

@@ -7,6 +7,8 @@ from dst.reparameterization import DSModel
 from dst.utils import param_count
 from dst.activation_sparse import *
 
+from dst.models.cresnet import *
+
 # net = cifar10_wrn.net(width=2).cuda()
 # print(net)
 # n_total, n_dense, n_sparse, n_nonzero, breakdown = get_sparse_param_stats(net)
