@@ -39,8 +39,8 @@ parser.add_argument(
     '-n',
     '--hidden-size',
     type=int,
-    default=128,
-    help='hidden dimension (default: 128)')
+    default=1024,
+    help='hidden dimension (default: 1024)')
 parser.add_argument(
     '-t',
     '--seq_len',
