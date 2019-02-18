@@ -160,7 +160,7 @@ cresnet_group = lambda ni, no, depth=1, no_trans=False: group(
     ni, no, cresnet_block if no_trans else cresnet_block_trans, cresnet_block, depth=depth
 )
 cresnet_rsbn_group = lambda ni, no, depth=1, no_trans=False: group(
-    ni, no, cresnet_rsbn_block_first if no_trans else cresnet_rsbn_block_trans, cresnet_rsbn_block, depth=depth
+    ni, no, cresnet_rsbn_block if no_trans else cresnet_rsbn_block_trans, cresnet_rsbn_block, depth=depth
 )
 
 
@@ -217,7 +217,8 @@ class CResNet(nn.Module):
         self.tail = nn.Sequential(
             ParallelPaths(
                 BNReLUPoolLin(widths[-1], num_classes),
-                BNReLUPoolLin(widths[-1]//2 if rsbn else widths[-1], num_classes)
+                BNReLUPoolLin(widths[-1], num_classes),
+                # BNReLUPoolLin(widths[-1]*2 if rsbn else widths[-1], num_classes)
             ), 
             ConvergentPaths(red_fn=lambda x, y: x+y) if coupled else ConvergentPaths(red_fn=lambda x, y: x)
         )

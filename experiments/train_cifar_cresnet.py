@@ -126,8 +126,8 @@ optimizer = SGD(
     momentum=0.9,
     nesterov=True)
 scheduler = MultiStepLR(optimizer, milestones=[60, 120, 160], gamma=0.2)
-logger.debug(model)  # print the model description
-logger.debug("Parameter count = {}".format(param_count(model)))
+print(model)  # print the model description
+print("Parameter count = {}".format(param_count(model)))
 
 
 def do_training(num_epochs=args.epochs):
