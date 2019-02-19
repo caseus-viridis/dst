@@ -56,7 +56,7 @@ class OneHot(nn.Module):
         return nn.functional.embedding(input, self.idmat)
 
 
-def create_rnn(cell_type, embed_size, hidden_size, num_layers, **rnn_config):
+def _create_rnn(cell_type, embed_size, hidden_size, num_layers, **rnn_config):
     if cell_type == 'rnn':
         rnn_cell = DSRNNCell
     elif cell_type == 'lstm':
@@ -96,7 +96,7 @@ class DSCharRNN(nn.Module):
         self.cell_type = cell_type
         self.device = device
         self.head = OneHot(input_size)
-        self.body = create_rnn(cell_type, input_size,
+        self.body = _create_rnn(cell_type, input_size,
                                hidden_size, depth, **rnn_config)
         self.tail = DSLinear(hidden_size, output_size, bias=False)
         self.to(device)

@@ -102,6 +102,28 @@ else:
 run_name = "{}-{}-h{:d}-d{:d}".format(
     args.dataset, args.cell_type, args.hidden_size, args.depth) + method_str
 
+# env
+load_dotenv(verbose=True)
+
+# gpu
+os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+torch.backends.cudnn.benchmark = True
+device = 'cuda:0'
+
+
+# path
+DATAPATH = os.getenv("DATAPATH")
+if DATAPATH is None:
+    logger.warning("Dataset directory is not configured. Please set the "
+                   "DATAPATH env variable or create an .env file.")
+    DATAPATH = './data'  # default
+MONITORPATH = os.getenv("MONITORPATH")
+if MONITORPATH is None:
+    print("Monitor directory is not configured. Please set the "
+        "MONITORPATH env variable or create an .env file.")
+    MONITORPATH = './runs'  # default
+
+
 #  logger
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -116,27 +138,12 @@ if args.monitor:
     writer, config = init_experiment({
         'title': "Character RNN experiments",
         'run_name': run_name,
-        'log_dir': './rnn_runs',
+        'log_dir': MONITORPATH + '/char_rnn',
         'random_seed': 7743
     })
 
 # progress bar
 pb_wrap = lambda it: tqdm(it, leave=False, dynamic_ncols=True)
-
-# env
-load_dotenv(verbose=True)
-
-# gpu
-os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
-torch.backends.cudnn.benchmark = True
-device = 'cuda:0'
-
-# data path
-DATAPATH = os.getenv("DATAPATH")
-if DATAPATH is None:
-    logger.warning("Dataset directory is not configured. Please set the "
-                   "DATAPATH env variable or create an .env file.")
-    DATAPATH = './data'  # default
 
 # data, model, loss, optimizer, lr_scheduler, rp_schedule
 data = PennTreebank(

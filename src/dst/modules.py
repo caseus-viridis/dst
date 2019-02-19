@@ -17,6 +17,15 @@ class _DSBase(nn.Module):
         super(_DSBase, self).__init__()
 
 
+class ConcatenatedParameters(nn.ModuleList):
+    def __init__(self, *mlist, dim=0):
+        super(ConcatenatedParameters, self).__init__(mlist)
+        self.dim=dim
+
+    def forward(self):
+        return torch.cat([m() for m in self], dim=self.dim)
+
+
 class DSLinear(_DSBase):
     r"""
     A dynamic sparse version of nn.Linear
@@ -238,10 +247,12 @@ class _DSRNNCellBase(_DSBase):
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.bias = bias
-        self.weight_ih = SparseParameter(
-            torch.Tensor(num_chunks * hidden_size, input_size))
-        self.weight_hh = SparseParameter(
-            torch.Tensor(num_chunks * hidden_size, hidden_size))
+        self.weight_ih = ConcatenatedParameters(*[
+            SparseParameter(torch.Tensor(hidden_size, input_size)) for _ in range(num_chunks)
+        ], dim=0)
+        self.weight_hh = ConcatenatedParameters(*[
+            SparseParameter(torch.Tensor(hidden_size, hidden_size)) for _ in range(num_chunks)
+        ], dim=0)
         if bias:
             self.bias_ih = Parameter(torch.Tensor(num_chunks * hidden_size))
             self.bias_hh = Parameter(torch.Tensor(num_chunks * hidden_size))

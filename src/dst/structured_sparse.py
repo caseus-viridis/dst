@@ -309,7 +309,6 @@ SparseParameter = lambda t: StructuredSparseParameter(
     grouping=ElementGrouping
 )
 
-
 if __name__=="__main__":
     # par = DenseParameter(torch.rand(8))
     # par = HashedParameter(shape=[8, 8], bank=torch.rand(6), seed=0)
