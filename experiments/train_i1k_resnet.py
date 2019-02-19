@@ -8,34 +8,28 @@ import torch
 import torch.nn as nn
 from torch.optim import SGD
 from torch.optim.lr_scheduler import MultiStepLR, LambdaLR
-from data import CIFAR10, CIFAR100
-from dst.models import cifar_resnet
+from data import I1K
+from dst.models import i1k_resnet
 # from dst.reparameterization import DSModel
 from dst.utils import param_count
 from pytorch_monitor import init_experiment, monitor_module
 
 parser = argparse.ArgumentParser(
-    description='CIFAR10/100 ResNet experiments')
+    description='Imagenet1K ResNet experiments')
 parser.add_argument(
-    '-d', '--depth', type=int, default=110, help='depth of resnet (default: 110)')
-parser.add_argument(
-    '-ds',
-    '--dataset',
-    type=str,
-    default='cifar10',
-    help='dataset, cifar10 or cifar100 (default: cifar10)')
+    '-d', '--depth', type=int, default=50, help='depth of resnet (default: 50)')
 parser.add_argument(
     '-z',
     '--batch-size',
     type=int,
-    default=64,
-    help='batch size (default: 64)')
+    default=256,
+    help='batch size (default: 256)')
 parser.add_argument(
     '-e',
     '--epochs',
     type=int,
-    default=400,
-    help='number of epochs (default: 400)')
+    default=100,
+    help='number of epochs (default: 100)')
 parser.add_argument(
     '-sb',
     '--spatial-bottleneck',
@@ -57,22 +51,30 @@ parser.add_argument(
     help='monitoring or not (default: False)')
 args = parser.parse_args()
 run_name = "{}-resnet{:d}-sb_{}{}".format(
-    args.dataset, args.depth,
+    'i1k', args.depth,
     args.spatial_bottleneck,
     "" if args.spatial_bottleneck=='none' else "-q{:d}".format(args.quarters)
 )
 
+# env
+load_dotenv(verbose=True)
+
+# gpu
+os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+torch.backends.cudnn.benchmark = True
+
 # paths
 DATAPATH = os.getenv("DATAPATH")
 if DATAPATH is None:
-    logger.warning("Dataset directory is not configured. Please set the "
-                   "DATAPATH env variable or create an .env file.")
+    print("Dataset directory is not configured. Please set the "
+        "DATAPATH env variable or create an .env file.")
     DATAPATH = './data'  # default
 MONITORPATH = os.getenv("MONITORPATH")
 if MONITORPATH is None:
     print("Monitor directory is not configured. Please set the "
-          "MONITORPATH env variable or create an .env file.")
+        "MONITORPATH env variable or create an .env file.")
     MONITORPATH = './runs'  # default
+
 
 #  logger
 logger = logging.getLogger(__name__)
@@ -86,32 +88,23 @@ logging.basicConfig(
 # monitor
 if args.monitor:
     writer, config = init_experiment({
-        'title': "CIFAR ResNet experiments",
+        'title': "I1K ResNet experiments",
         'run_name': run_name,
-        'log_dir': MONITORPATH + '/cifar_resnet',
+        'log_dir': MONITORPATH + '/i1k_resnet',
         'random_seed': 7734
     })
 
 # progress bar
 pb_wrap = lambda it: tqdm(it, leave=False, dynamic_ncols=True)
 
-# env
-load_dotenv(verbose=True)
-
-# gpu
-os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
-torch.backends.cudnn.benchmark = True
-
 # data, model, loss, optimizer, lr_scheduler, rp_schedule
-
-data = eval(args.dataset.upper())(
-    data_dir=DATAPATH + '/' + args.dataset,
+data = I1K(
+    data_dir=DATAPATH + '/i1k',
     cuda=True,
-    num_workers=4,
+    num_workers=8,
     batch_size=args.batch_size,
     shuffle=True)
-model = eval("cifar_resnet.resnet{:d}".format(args.depth))(
-    num_classes=100 if args.dataset == 'cifar100' else 10,
+model = eval("i1k_resnet.resnet{:d}".format(args.depth))(
     spatial_bottleneck=args.spatial_bottleneck,
     density=0.25*args.quarters).cuda()
 loss_func = nn.CrossEntropyLoss().cuda()
@@ -121,18 +114,12 @@ optimizer = SGD(
     weight_decay=1e-4,
     momentum=0.9,
     nesterov=True)
-scheduler = MultiStepLR(optimizer, milestones=[200, 300], gamma=0.1)
-# rp_schedule = lambda epoch: max([
-#     100 if epoch >=   0 else 0,
-#     200 if epoch >=  25 else 0,
-#     400 if epoch >=  80 else 0,
-#     800 if epoch >= 140 else 0
-# ])
+scheduler = MultiStepLR(optimizer, milestones=[30, 60, 90], gamma=0.1)
 print(model)  # print the model description
 print("Parameter count = {}".format(param_count(model)))
 
 def do_training(num_epochs=args.epochs):
-    batch = batches_since_last_rp = 0
+    batch = 0
     for epoch in range(args.epochs):
         scheduler.step(epoch)
         training_loss = 0.
@@ -142,12 +129,6 @@ def do_training(num_epochs=args.epochs):
                 batch += 1
                 loss = train(x, y)
                 training_loss += loss
-                batches_since_last_rp += 1
-                # if batches_since_last_rp == rp_schedule(epoch):
-                #     model.reparameterize()
-                #     batches_since_last_rp = 0
-                #     tqdm.write(model.stats_table.get_string())
-                #     tqdm.write(model.sum_table.get_string())
                 loader.set_postfix(
                     loss="\33[91m{:6.4f}\033[0m".format(loss))
         test_loss, correct = test()
@@ -171,6 +152,22 @@ def train(x, y):
     return loss.item()
 
 
+def accuracy(output, target, topk=(1,)):
+    """Computes the precision@k for the specified values of k"""
+    maxk = max(topk)
+    batch_size = target.size(0)
+
+    _, pred = output.topk(maxk, 1, True, True)
+    pred = pred.t()
+    correct = pred.eq(target.view(1, -1).expand_as(pred))
+
+    res = []
+    for k in topk:
+        correct_k = correct[:k].view(-1).float().sum(0)
+        res.append(correct_k.mul_(100.0 / batch_size))
+    return res 
+
+
 def test():
     model.eval()
     total_loss = correct = 0.
@@ -183,6 +180,8 @@ def test():
                 _y = model(x)
                 loss = loss_func(_y, y)
                 total_loss += loss.item()
+                prec1, prec5 = accuracy(_y, y, 1), accuracy(_y, y, 5)
+                import ipdb; ipdb.set_trace()
                 pred = _y.max(1, keepdim=True)[1]
                 correct += pred.eq(y.view_as(pred)).sum().item()
                 total_size += x.shape[0]

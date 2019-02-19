@@ -157,8 +157,7 @@ class ResNet(nn.Module):
                     self.in_planes,
                     planes,
                     stride,
-                    spatial_bottleneck=self.spatial_bottleneck,
-                    spatial_mask=self.spatial_mask))
+                    spatial_bottleneck=self.spatial_bottleneck))
             self.in_planes = planes * block.expansion
         return nn.Sequential(*layers)
 

@@ -104,7 +104,7 @@ class I1K(object):
             **gpu_conf)
         self.val = torch.utils.data.DataLoader(
             tv.datasets.ImageFolder(
-                data_dir + '/val',
+                data_dir + '/validation',
                 tv.transforms.Compose([
                     tv.transforms.Resize(256),
                     tv.transforms.CenterCrop(224),
