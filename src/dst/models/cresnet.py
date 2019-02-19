@@ -4,6 +4,15 @@ import torch.nn.functional as F
 from functools import reduce
 
 
+class Concat(nn.Module):
+    def __init__(self, dim=-1):
+        super(Concat, self).__init__()
+        self.dim = dim
+
+    def forward(self, *xs):
+        return torch.cat(xs, dim=self.dim)
+
+
 class DivergentPaths(nn.ModuleList):
     def __init__(self, *mlist):
         super(DivergentPaths, self).__init__(mlist)
@@ -24,7 +33,7 @@ class ConvergentPaths(nn.Module):
     def __init__(self, red_fn=lambda x, y: x+y):
         super(ConvergentPaths, self).__init__()
         self.red_fn = red_fn
-    
+
     def forward(self, inputs):
         return reduce(self.red_fn, inputs)
 
@@ -195,13 +204,7 @@ class CResNet(nn.Module):
             nn.Conv2d(
                 3, width,
                 kernel_size=3,
-                stride=2,
-                padding=1,
-                bias=False
-            ) if rsbn else nn.Conv2d(
-                3, width,
-                kernel_size=3,
-                stride=1,
+                stride=2 if rsbn else 1,
                 padding=1,
                 bias=False
             )
@@ -216,12 +219,20 @@ class CResNet(nn.Module):
         ])
         self.tail = nn.Sequential(
             ParallelPaths(
-                BNReLUPoolLin(widths[-1], num_classes),
-                BNReLUPoolLin(widths[-1], num_classes),
-                # BNReLUPoolLin(widths[-1]*2 if rsbn else widths[-1], num_classes)
-            ), 
-            ConvergentPaths(red_fn=lambda x, y: x+y) if coupled else ConvergentPaths(red_fn=lambda x, y: x)
+                nn.Conv2d(widths[-1], widths[-1], kernel_size=3, stride=2, padding=1, bias=False) if rsbn else nn.Sequential(),
+                nn.Sequential()
+            ),
+            ConvergentPaths(red_fn=lambda x, y: torch.cat([x, y], dim=1)) if coupled else ConvergentPaths(red_fn=lambda x, y: x),
+            BNReLUPoolLin(widths[-1]*2 if coupled else widths[-1], num_classes)
         )
+        # self.tail = nn.Sequential(
+        #     ParallelPaths(
+        #         BNReLUPoolLin(widths[-1], num_classes),
+        #         BNReLUPoolLin(widths[-1], num_classes),
+        #         # BNReLUPoolLin(widths[-1]*2 if rsbn else widths[-1], num_classes)
+        #     ),
+        #     ConvergentPaths(red_fn=lambda x, y: x+y) if coupled else ConvergentPaths(red_fn=lambda x, y: x)
+        # )
 
     def forward(self, x):
         x = self.head(x)
