@@ -75,8 +75,8 @@ parser.add_argument(
     '-e',
     '--epochs',
     type=int,
-    default=50,
-    help='number of epochs (default: 50)')
+    default=60,
+    help='number of epochs (default: 60)')
 parser.add_argument(
     '--gpu', default='0', type=str, help='id(s) for GPU(s) to use')
 parser.add_argument(
