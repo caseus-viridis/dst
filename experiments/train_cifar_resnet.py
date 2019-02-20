@@ -13,6 +13,10 @@ from dst.models import cifar_resnet
 # from dst.reparameterization import DSModel
 from dst.utils import param_count
 from pytorch_monitor import init_experiment, monitor_module
+from ignite.engine import Engine, Events, create_supervised_trainer, create_supervised_evaluator
+from ignite.metrics import Accuracy, Loss, RunningAverage
+from ignite.handlers import ModelCheckpoint
+from ignite.contrib.handlers import ProgressBar, LRScheduler
 
 parser = argparse.ArgumentParser(
     description='CIFAR10/100 ResNet experiments')
@@ -49,6 +53,12 @@ parser.add_argument(
     default=2,
     help='In case of spatial bottleneck sparsity, density of activation in quarters (default: 2)')
 parser.add_argument(
+    '-r',
+    '--run-id',
+    type=int,
+    default=0,
+    help='Run ID (default: 0)')
+parser.add_argument(
     '--gpu', default='0', type=str, help='id(s) for GPU(s) to use')
 parser.add_argument(
     '-m',
@@ -56,72 +66,65 @@ parser.add_argument(
     action='store_true',
     help='monitoring or not (default: False)')
 args = parser.parse_args()
-run_name = "{}-resnet{:d}-sb_{}{}".format(
+
+# run name
+run_name = "{}-resnet{:d}-sb_{}{}-run{:d}".format(
     args.dataset, args.depth,
     args.spatial_bottleneck,
-    "" if args.spatial_bottleneck=='none' else "-q{:d}".format(args.quarters)
+    "" if args.spatial_bottleneck=='none' else "-q_{:d}".format(args.quarters),
+    args.run_id
 )
 
-# paths
-DATAPATH = os.getenv("DATAPATH")
-if DATAPATH is None:
-    logger.warning("Dataset directory is not configured. Please set the "
-                   "DATAPATH env variable or create an .env file.")
-    DATAPATH = './data'  # default
-MONITORPATH = os.getenv("MONITORPATH")
-if MONITORPATH is None:
-    print("Monitor directory is not configured. Please set the "
-          "MONITORPATH env variable or create an .env file.")
-    MONITORPATH = './runs'  # default
+# gpu
+os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+torch.backends.cudnn.benchmark = True
 
-#  logger
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
-    datefmt='%H:%M:%S',
-    level=logging.DEBUG,
-    filename='./log/{}.log'.format(run_name),
-    filemode='a')
+# env
+load_dotenv(verbose=True)
+DATA_PATH = os.getenv("DATA_PATH") or './data'
+MONITOR_PATH = os.getenv("MONITOR_PATH") or './monitor'
+CHECKPOINT_PATH = os.getenv("CHECKPOINT_PATH") or './checkpoint'
 
 # monitor
 if args.monitor:
     writer, config = init_experiment({
-        'title': "CIFAR ResNet experiments",
+        'title': "CIFAR10/100 ResNet experiments",
         'run_name': run_name,
-        'log_dir': MONITORPATH + '/cifar_resnet',
-        'random_seed': 7734
+        'log_dir': MONITOR_PATH + '/cifar_resnet',
+        'random_seed': args.run_id
     })
 
-# progress bar
-pb_wrap = lambda it: tqdm(it, leave=False, dynamic_ncols=True)
-
-# env
-load_dotenv(verbose=True)
-
-# gpu
-os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
-torch.backends.cudnn.benchmark = True
+# checkpoint
+checkpointer = ModelCheckpoint(
+    dirname=CHECKPOINT_PATH + '/cifar_resnet',
+    filename_prefix=run_name,
+    save_interval=1,
+    require_empty=False,
+    save_as_state_dict=False
+)
 
 # data, model, loss, optimizer, lr_scheduler, rp_schedule
-
 data = eval(args.dataset.upper())(
-    data_dir=DATAPATH + '/' + args.dataset,
+    data_dir=DATA_PATH + '/' + args.dataset,
     cuda=True,
-    num_workers=4,
+    num_workers=8,
     batch_size=args.batch_size,
     shuffle=True)
 model = eval("cifar_resnet.resnet{:d}".format(args.depth))(
     num_classes=100 if args.dataset == 'cifar100' else 10,
     spatial_bottleneck=args.spatial_bottleneck,
-    density=0.25*args.quarters).cuda()
-loss_func = nn.CrossEntropyLoss().cuda()
+    density=0.25*args.quarters)
+loss_func = nn.CrossEntropyLoss()
 optimizer = SGD(
     model.parameters(),
     lr=1e-1,
     weight_decay=1e-4,
     momentum=0.9,
     nesterov=True)
-scheduler = MultiStepLR(optimizer, milestones=[200, 300], gamma=0.1)
+scheduler = LRScheduler(MultiStepLR(
+    optimizer, milestones=[200, 300], gamma=0.1
+))
 # rp_schedule = lambda epoch: max([
 #     100 if epoch >=   0 else 0,
 #     200 if epoch >=  25 else 0,
@@ -131,63 +134,73 @@ scheduler = MultiStepLR(optimizer, milestones=[200, 300], gamma=0.1)
 print(model)  # print the model description
 print("Parameter count = {}".format(param_count(model)))
 
-def do_training(num_epochs=args.epochs):
-    batch = batches_since_last_rp = 0
-    for epoch in range(args.epochs):
-        scheduler.step(epoch)
-        training_loss = 0.
-        with pb_wrap(data.train) as loader:
-            loader.set_description("Training epoch {:3d}".format(epoch))
-            for i, (x, y) in enumerate(loader):
-                batch += 1
-                loss = train(x, y)
-                training_loss += loss
-                batches_since_last_rp += 1
-                # if batches_since_last_rp == rp_schedule(epoch):
-                #     model.reparameterize()
-                #     batches_since_last_rp = 0
-                #     tqdm.write(model.stats_table.get_string())
-                #     tqdm.write(model.sum_table.get_string())
-                loader.set_postfix(
-                    loss="\33[91m{:6.4f}\033[0m".format(loss))
-        test_loss, correct = test()
-        training_loss /= i + 1
-        logger.debug(
-            "Epoch {:3d}: training loss = {:6.4f}, test loss = {:6.4f}, correct% = {:5.2f}"
-            .format(epoch, training_loss, test_loss, correct * 100))
-        if args.monitor:
-            writer.add_scalar('training_loss', training_loss, epoch)
-            writer.add_scalar('test_loss', test_loss, epoch)
-            writer.add_scalar('correct', correct, epoch)
+trainer = create_supervised_trainer(
+    model, optimizer, loss_func,
+    device=device
+)
+evaluator = create_supervised_evaluator(
+    model, metrics={
+        'accuracy': Accuracy(),
+        'loss': Loss(loss_func)
+    },
+    device=device
+)
 
+RunningAverage(alpha=0.9, output_transform=lambda x: x).attach(trainer, 'loss')
+ProgressBar().attach(trainer, ['loss'])
 
-def train(x, y):
-    model.train()
-    x, y = x.cuda(), y.cuda()
-    loss = loss_func(model(x), y)
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
-    return loss.item()
+# @trainer.on(Events.STARTED)
+# def init_counter(engine):
+#     engine.state.batches_since_last_rp = 0
 
+# @trainer.on(Events.ITERATION_COMPLETED)
+# def reparameterize(engine):
+#     engine.state.batches_since_last_rp += 1
+#     if engine.state.batches_since_last_rp == rp_schedule(engine.state.epoch):
+#         # print("Reparameterize model at Iteration {}, Epoch {}".format(engine.state.iteration, engine.state.epoch))
+#         model.reparameterize()
+#         engine.state.batches_since_last_rp = 0
 
-def test():
-    model.eval()
-    total_loss = correct = 0.
-    total_size = 0
-    with torch.no_grad():
-        with pb_wrap(data.test) as loader:
-            loader.set_description("Testing")
-            for batch, (x, y) in enumerate(loader):
-                x, y = x.cuda(), y.cuda()
-                _y = model(x)
-                loss = loss_func(_y, y)
-                total_loss += loss.item()
-                pred = _y.max(1, keepdim=True)[1]
-                correct += pred.eq(y.view_as(pred)).sum().item()
-                total_size += x.shape[0]
-    return total_loss / (batch + 1), correct / total_size
+trainer.add_event_handler(Events.EPOCH_STARTED, scheduler)
+
+@trainer.on(Events.EPOCH_COMPLETED)
+def log_training_loss(engine):
+    print("Epoch {:3d}: train loss = {:.4f}".format(
+        engine.state.epoch,
+        engine.state.metrics['loss']
+    ))
+    if args.monitor:
+        writer.add_scalar('train_loss', engine.state.metrics['loss'], engine.state.epoch)
+
+@trainer.on(Events.EPOCH_COMPLETED)
+def log_test_results(engine):
+    evaluator.run(data.test)
+    loss, accuracy = evaluator.state.metrics['loss'], evaluator.state.metrics['accuracy']
+    print("Epoch {:3d}: test loss = {:.4f}, test accuracy = {:.4f}".format(engine.state.epoch, loss, accuracy))
+    if args.monitor:
+        writer.add_scalar('test_loss', loss, engine.state.epoch)
+        writer.add_scalar('accuracy', accuracy, engine.state.epoch)
+
+# @trainer.on(Events.EPOCH_COMPLETED)
+# def save_checkpoint(engine):
+#     import ipdb; ipdb.set_trace()
+#     torch.save(dict(
+#         model=model.state_dict,
+#         optimizer=optimizer.state_dict,
+#         scheduler=scheduler,
+#         trainer=trainer
+#     ), CHECKPOINT_PATH + '/cifar_resnet/' + run_name + '.pth')
+trainer.add_event_handler(Events.EPOCH_COMPLETED, checkpointer, dict(
+    data=data,
+    model=model,
+    optimizer=optimizer,
+    scheduler=scheduler,
+    trainer_state=dict(
+        epoch=trainer.state.epoch,
+        iteration=trainer.state.iteration
+    ),
+))
 
 
 if __name__ == "__main__":
-    do_training()
+    trainer.run(data.train, max_epochs=args.epochs)

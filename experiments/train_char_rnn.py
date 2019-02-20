@@ -10,7 +10,7 @@ from torch.optim import RMSprop
 from torch.optim.lr_scheduler import MultiStepLR, LambdaLR
 from data import PennTreebank
 from dst.models import char_rnn
-from dst.reparameterization import DSModel
+from dst.reparameterization import DSModel, ReallocationHeuristics
 from dst.utils import param_count
 from pytorch_monitor import init_experiment, monitor_module
 
@@ -187,7 +187,7 @@ print(model)  # print the model description
 print("Parameter count = {}".format(param_count(model)))
 
 # Pruning threshold schedule as in Narang et al. 2017a,b
-BATCHES_PER_EPOCH = 798
+BATCHES_PER_EPOCH = len(data.train)
 FREQ = 100
 def get_pruning_threshold(itr,
                           q=args.pct90,
@@ -219,7 +219,7 @@ def do_training(num_epochs=args.epochs):
                         if model.pruning_threshold > 0:
                             model.prune_by_threshold()
                     elif args.sparsification=='dst':
-                        model.reparameterize()
+                        model.reparameterize(heuristic=ReallocationHeuristics.paper)
                     tqdm.write("BATCH #{:d}".format(batch))
                     tqdm.write(model.stats_table.get_string())
                     tqdm.write(model.sum_table.get_string())
