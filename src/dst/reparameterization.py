@@ -29,6 +29,11 @@ class ReallocationHeuristics(object):
         return Mp / Mp.sum()
 
     @staticmethod
+    def Z_p_sphere(N, M, R, p=1):
+        Zp = (N - R)**p
+        return Zp / Zp.sum()
+
+    @staticmethod
     def N_p_sphere(N, M, R, p=1):
         Np = N**p
         return Np / Np.sum()
@@ -49,6 +54,11 @@ class ReallocationHeuristics(object):
         # Heuristic of no reallocation across parameter tensors, only within
         return ReallocationHeuristics.K_p_sphere(N, M, R, p=1)
 
+    @staticmethod
+    def anti_paper(N, M, R):
+        # Heuristic of no reallocation across parameter tensors, using complementary weight counts as the paper
+        return ReallocationHeuristics.Z_p_sphere(N, M, R, p=1)
+
 
 class DSModel(nn.Module):
     r"""
@@ -67,7 +77,7 @@ class DSModel(nn.Module):
         self.pruning_threshold = pruning_threshold
         self.stats_table = pt(
             field_names=[
-                'Parameter tensor', '# total', '# nonzero', 'sparsity' # , 'snapshot'
+                'Parameter tensor', '# total', '# nonzero', 'sparsity' #, 'snapshot'
             ],
             float_format='.4',
             align='r')
