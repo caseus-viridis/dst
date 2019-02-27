@@ -92,7 +92,7 @@ if args.monitor:
         'title': "CIFAR10/100 ResNet experiments",
         'run_name': run_name,
         'log_dir': MONITOR_PATH + '/cifar_resnet',
-        'random_seed': 1 # args.run_id
+        'random_seed': 0 # args.run_id
     })
 
 # checkpointer
@@ -113,7 +113,7 @@ trainer_state_ckpt = [cpf for cpf in ckpt if run_name + '_trainer_state' in cpf]
 data = eval(args.dataset.upper())(
     data_dir=DATA_PATH + '/' + args.dataset,
     cuda=True,
-    num_workers=8,
+    num_workers=0,
     batch_size=args.batch_size,
     shuffle=True)
 model = torch.load(*model_ckpt) if model_ckpt else eval("cifar_resnet.resnet{:d}".format(args.depth))(
@@ -165,13 +165,21 @@ def log_training_loss(engine):
 def log_test_results(engine):
     evaluator.run(data.test)
     loss, accuracy = evaluator.state.metrics['loss'], evaluator.state.metrics['accuracy']
-    print(
-        "Epoch {:3d}: train loss = {:.4f}, test loss = {:.4f}, test accuracy = {:.4f}"
-        .format(engine.state.epoch, engine.state.metrics['loss'], loss, accuracy)
-    )
     if args.monitor:
         writer.add_scalar('test_loss', loss, engine.state.epoch)
         writer.add_scalar('accuracy', accuracy, engine.state.epoch)
+
+@trainer.on(Events.EPOCH_COMPLETED)
+def print_results(engine):
+    print(
+        "Epoch {:3d}: train loss = {:.4f}, test loss = {:.4f}, test accuracy = {:.4f}"
+        .format(
+            trainer.state.epoch, 
+            trainer.state.metrics['loss'], 
+            evaluator.state.metrics['loss'], 
+            evaluator.state.metrics['accuracy']
+        )
+    )
 
 @trainer.on(Events.EPOCH_COMPLETED)
 def save_checkpoint(engine):
