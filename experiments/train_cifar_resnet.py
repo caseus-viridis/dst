@@ -102,8 +102,8 @@ checkpointer = ModelCheckpoint(
     filename_prefix=run_name,
     save_interval=1,
     require_empty=False,
-    save_as_state_dict=True
-)
+    save_as_state_dict=True)
+
 # define checkpoint structure
 class assemble_checkpoint:
     def state_dict(self):
@@ -124,7 +124,7 @@ class assemble_checkpoint:
 data = eval(args.dataset.upper())(
     data_dir='/'.join([DATA_PATH, args.dataset]),
     cuda=True,
-    num_workers=0,
+    num_workers=8,
     batch_size=args.batch_size,
     shuffle=True)
 model = eval("cifar_resnet.resnet{:d}".format(args.depth))(
