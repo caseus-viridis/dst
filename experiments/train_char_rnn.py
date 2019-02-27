@@ -177,7 +177,7 @@ if args.sparsification=='dst':
         400 if epoch >=  20 else 0,
         800 if epoch >=  30 else 0,
         1e9 if epoch >=  40 else 0
-    ]) 
+    ])
 else: # elif args.sparsification=='comp':
     rp_schedule = lambda epoch: max([
         100 if epoch >= 0 else 0,

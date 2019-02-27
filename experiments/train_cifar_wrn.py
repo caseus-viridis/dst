@@ -18,15 +18,17 @@ from ignite.handlers import ModelCheckpoint
 from ignite.contrib.handlers import ProgressBar, LRScheduler
 
 parser = argparse.ArgumentParser(
-    description='CIFAR10/100 WRN-28-W dynamic sparse training')
-parser.add_argument(
-    '-w', '--width', type=int, default=2, help='width of WRN (default: 2)')
+    description='CIFAR10/100 Wide ResNet dynamic sparse training')
 parser.add_argument(
     '-ds',
     '--dataset',
     type=str,
     default='cifar10',
     help='dataset, cifar10 or cifar100 (default: cifar10)')
+parser.add_argument(
+    '-w', '--width', type=int, default=16, help='width of WRN (default: 16)')
+parser.add_argument(
+    '-d', '--depth', type=int, default=4, help='group depth of WRN (default: 4)')
 parser.add_argument(
     '-z',
     '--batch-size',
@@ -40,10 +42,35 @@ parser.add_argument(
     default=200,
     help='number of epochs (default: 200)')
 parser.add_argument(
-    '-sb',
-    '--spatial-bottleneck',
-    action='store_true',
-    help='Spatial bottleneck architecture (default: False)')
+    '-s',
+    '--sparsity',
+    type=float,
+    default=0.0,
+    help=
+    'in the case of DST, the target overall sparsity as in Mostafa & Wang 2018a,b (default: 0.0)'
+)
+parser.add_argument(
+    '-f',
+    '--fraction-to-prune',
+    type=float,
+    default=1e-2,
+    help=
+    'in the case of DST, the target fraction of parameters to reallocate per reparameterization as in Mostafa & Wang 2018a,b (default: 1e-2, i.e. 1%)'
+)
+parser.add_argument(
+    '-p',
+    '--period',
+    type=int,
+    default=100,
+    help='base period of reparameterization (default: 100)')
+parser.add_argument(
+    '-wd',
+    '--weight-decay',
+    type=float,
+    default=5e-4,
+    help=
+    'weight decay (default: 5e-4)'
+)
 parser.add_argument(
     '-r', '--run-id', type=int, default=0, help='Run ID (default: 0)')
 parser.add_argument(
@@ -56,8 +83,8 @@ parser.add_argument(
 args = parser.parse_args()
 
 # run name
-run_name = "{}-wrn_28_{:d}{}-run{:d}".format(
-    args.dataset, args.width, "-sb" if args.spatial_bottleneck else "",
+run_name = "{}-wrn_{:d}_{:d}-run{:d}".format(
+    args.dataset, args.depth*6+4, args.width,
     args.run_id)
 
 # gpu
@@ -87,38 +114,42 @@ checkpointer = ModelCheckpoint(
     filename_prefix=run_name,
     save_interval=1,
     require_empty=False,
-    save_as_state_dict=False)
+    save_as_state_dict=True)
 
 # data, model, loss, optimizer, lr_scheduler, rp_schedule
 data = eval(args.dataset.upper())(
-    data_dir=DATAPATH + '/' + args.dataset,
+    data_dir=DATA_PATH + '/' + args.dataset,
     cuda=True,
     num_workers=8,
     batch_size=args.batch_size,
     shuffle=True)
 model = DSModel(
     model=cifar_wrn.net(
+        width=args.width, depth=args.depth, num_features=1,
         num_classes=100 if args.dataset == 'cifar100' else 10,
-        width=args.width,
-        spatial_bottleneck=args.spatial_bottleneck),
-    target_sparsity=0.9).cuda()
-loss_func = nn.CrossEntropyLoss().cuda()
+    ),
+    target_sparsity=args.sparsity,
+    target_fraction_to_prune=args.fraction_to_prune,
+    pruning_threshold=1e-3 # this is just the initial pruning threshold
+)
+loss_func = nn.CrossEntropyLoss()
 optimizer = SGD(
     model.parameters(),
     lr=1e-1,
-    weight_decay=5e-4,
+    weight_decay=args.weight_decay,
     momentum=0.9,
     nesterov=True)
 scheduler = LRScheduler(
     MultiStepLR(optimizer, milestones=[60, 120, 160], gamma=0.2))
 rp_schedule = lambda epoch: max([
-    100 if epoch >=   0 else 0,
-    200 if epoch >=  25 else 0,
-    400 if epoch >=  80 else 0,
-    800 if epoch >= 140 else 0
-])
+    1   if epoch >=   0 else 0,
+    2   if epoch >=  40 else 0,
+    4   if epoch >=  80 else 0,
+    8   if epoch >= 120 else 0,
+    1e9 if epoch >= 160 else 0
+]) * args.period
 print(model)  # print the model description
-print("Parameter count = {}".format(param_count(model)))
+print(model.sum_table.get_string())
 
 trainer = create_supervised_trainer(model, optimizer, loss_func, device=device)
 evaluator = create_supervised_evaluator(
@@ -142,9 +173,11 @@ def init_counter(engine):
 def reparameterize(engine):
     engine.state.iterations_since_last_rp += 1
     if engine.state.iterations_since_last_rp == rp_schedule(
-            engine.state.epoch):
-        # print("Reparameterize model at Iteration {}, Epoch {}".format(engine.state.iteration, engine.state.epoch))
+            engine.state.epoch) and args.sparsity > 0.:
         model.reparameterize()
+        tqdm.write("Reparameterized model at Iteration {}, pruning threshold = {:6.4f}".format(engine.state.iteration, model.pruning_threshold))
+        # tqdm.write(model.stats_table.get_string())
+        tqdm.write(model.sum_table.get_string())
         engine.state.iterations_since_last_rp = 0
 
 
@@ -153,8 +186,6 @@ trainer.add_event_handler(Events.EPOCH_STARTED, scheduler)
 
 @trainer.on(Events.EPOCH_COMPLETED)
 def log_training_loss(engine):
-    print("Epoch {:3d}: train loss = {:.4f}".format(
-        engine.state.epoch, engine.state.metrics['loss']))
     if args.monitor:
         writer.add_scalar('train_loss', engine.state.metrics['loss'],
                           engine.state.epoch)
@@ -165,11 +196,21 @@ def log_test_results(engine):
     evaluator.run(data.test)
     loss, accuracy = evaluator.state.metrics['loss'], evaluator.state.metrics[
         'accuracy']
-    print("Epoch {:3d}: test loss = {:.4f}, test accuracy = {:.4f}".format(
-        engine.state.epoch, loss, accuracy))
     if args.monitor:
         writer.add_scalar('test_loss', loss, engine.state.epoch)
         writer.add_scalar('accuracy', accuracy, engine.state.epoch)
+
+
+@trainer.on(Events.EPOCH_COMPLETED)
+def print_results(engine):
+    print(
+        "Epoch {:3d}: train loss = {:.4f}, test loss = {:.4f}, test accuracy = {:.4f}".format(
+            trainer.state.epoch, 
+            trainer.state.metrics['loss'], 
+            evaluator.state.metrics['loss'], 
+            evaluator.state.metrics['accuracy']
+        )
+    )
 
 
 @trainer.on(Events.EPOCH_COMPLETED)
@@ -179,12 +220,12 @@ def save_checkpoint(engine):
         dict(
             model=model,
             optimizer=optimizer,
-            scheduler=scheduler,
-            trainer_state=dict(
-                epoch=trainer.state.epoch,
-                iteration=trainer.state.iteration,
-                iterations_since_last_rp=trainer.state.
-                iterations_since_last_rp),
+            # scheduler=scheduler,
+            # trainer_state=dict(
+            #     epoch=trainer.state.epoch,
+            #     iteration=trainer.state.iteration,
+            #     iterations_since_last_rp=trainer.state.
+            #     iterations_since_last_rp),
         ))
 
 
