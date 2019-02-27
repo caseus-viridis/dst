@@ -82,9 +82,11 @@ parser.add_argument(
     help='monitoring or not (default: False)')
 args = parser.parse_args()
 
-# run name
-run_name = "{}-wrn_{:d}_{:d}-run{:d}".format(
+# experiment and run name
+exp_name = 'cifar_wrn'
+run_name = "{}-wrn_{:d}_{:d}-s{}-f{}-p{}-wd{}-run{:d}".format(
     args.dataset, args.depth*6+4, args.width,
+    args.sparsity, args.fraction_to_prune, args.period, args.weight_decay,
     args.run_id)
 
 # gpu
@@ -104,21 +106,38 @@ if args.monitor:
     writer, config = init_experiment({
         'title': "CIFAR10/100 WRN experiments",
         'run_name': run_name,
-        'log_dir': MONITOR_PATH + '/cifar_wrn',
+        'log_dir': '/'.join([MONITOR_PATH, exp_name]),
         'random_seed': args.run_id
     })
 
 # checkpointer
 checkpointer = ModelCheckpoint(
-    dirname=CHECKPOINT_PATH + '/cifar_wrn',
+    dirname='/'.join([CHECKPOINT_PATH, exp_name]),
     filename_prefix=run_name,
     save_interval=1,
     require_empty=False,
     save_as_state_dict=True)
 
+# define checkpoint structure
+class assemble_checkpoint:
+    def state_dict(self):
+        return dict(
+            model_state_dict=model.state_dict(),
+            optimizer_state_dict=optimizer.state_dict(),
+            scheduler=scheduler,
+            trainer_state=dict(
+                epoch=trainer.state.epoch,
+                iteration=trainer.state.iteration,
+                iterations_since_last_rp=trainer.state.iterations_since_last_rp
+            ),
+            checkpointer_state=dict(
+                _iteration=checkpointer._iteration
+            )
+        )
+
 # data, model, loss, optimizer, lr_scheduler, rp_schedule
 data = eval(args.dataset.upper())(
-    data_dir=DATA_PATH + '/' + args.dataset,
+    data_dir='/'.join([DATA_PATH, args.dataset]),
     cuda=True,
     num_workers=8,
     batch_size=args.batch_size,
@@ -131,8 +150,8 @@ model = DSModel(
     target_sparsity=args.sparsity,
     target_fraction_to_prune=args.fraction_to_prune,
     pruning_threshold=1e-3 # this is just the initial pruning threshold
-)
-loss_func = nn.CrossEntropyLoss()
+).to(device)
+loss_func = nn.CrossEntropyLoss().to(device)
 optimizer = SGD(
     model.parameters(),
     lr=1e-1,
@@ -151,6 +170,7 @@ rp_schedule = lambda epoch: max([
 print(model)  # print the model description
 print(model.sum_table.get_string())
 
+# engines
 trainer = create_supervised_trainer(model, optimizer, loss_func, device=device)
 evaluator = create_supervised_evaluator(
     model,
@@ -159,16 +179,29 @@ evaluator = create_supervised_evaluator(
         'loss': Loss(loss_func)
     },
     device=device)
-
 RunningAverage(alpha=0.9, output_transform=lambda x: x).attach(trainer, 'loss')
 ProgressBar().attach(trainer, ['loss'])
 
 
+# resume from checkpoint
 @trainer.on(Events.STARTED)
-def init_counter(engine):
-    engine.state.iterations_since_last_rp = 0
+def resume_from_checkpoint(engine):
+    ckpt = glob('/'.join([CHECKPOINT_PATH, exp_name, run_name]) + '*.pth')
+    if ckpt:
+        print("Resuming from checkpoint: {}".format(*ckpt))
+        _ckpt = torch.load(*ckpt)
+        model.load_state_dict(_ckpt['model_state_dict'])
+        optimizer.load_state_dict(_ckpt['optimizer_state_dict'])
+        scheduler = _ckpt['scheduler']
+        for k, v in _ckpt['trainer_state'].items():
+            setattr(trainer.state, k, v)
+        for k, v in _ckpt['checkpointer_state'].items():
+            setattr(checkpointer, k, v)
+        os.remove(*ckpt)
+    else:
+        engine.state.iterations_since_last_rp = 0
 
-
+# reparameterization
 @trainer.on(Events.ITERATION_COMPLETED)
 def reparameterize(engine):
     engine.state.iterations_since_last_rp += 1
@@ -180,53 +213,39 @@ def reparameterize(engine):
         tqdm.write(model.sum_table.get_string())
         engine.state.iterations_since_last_rp = 0
 
-
+# LR scheduler
 trainer.add_event_handler(Events.EPOCH_STARTED, scheduler)
 
-
+# log training results
 @trainer.on(Events.EPOCH_COMPLETED)
 def log_training_loss(engine):
     if args.monitor:
-        writer.add_scalar('train_loss', engine.state.metrics['loss'],
-                          engine.state.epoch)
+        writer.add_scalar('train_loss', engine.state.metrics['loss'], engine.state.epoch)
 
-
+# do test and log results
 @trainer.on(Events.EPOCH_COMPLETED)
 def log_test_results(engine):
     evaluator.run(data.test)
-    loss, accuracy = evaluator.state.metrics['loss'], evaluator.state.metrics[
-        'accuracy']
+    loss, accuracy = evaluator.state.metrics['loss'], evaluator.state.metrics['accuracy']
     if args.monitor:
         writer.add_scalar('test_loss', loss, engine.state.epoch)
         writer.add_scalar('accuracy', accuracy, engine.state.epoch)
 
-
+# print summary to console after each epoch
 @trainer.on(Events.EPOCH_COMPLETED)
 def print_results(engine):
     print(
         "Epoch {:3d}: train loss = {:.4f}, test loss = {:.4f}, test accuracy = {:.4f}".format(
-            trainer.state.epoch, 
-            trainer.state.metrics['loss'], 
-            evaluator.state.metrics['loss'], 
+            trainer.state.epoch,
+            trainer.state.metrics['loss'],
+            evaluator.state.metrics['loss'],
             evaluator.state.metrics['accuracy']
         )
     )
 
-
-@trainer.on(Events.EPOCH_COMPLETED)
-def save_checkpoint(engine):
-    checkpointer(
-        engine,
-        dict(
-            model=model,
-            optimizer=optimizer,
-            # scheduler=scheduler,
-            # trainer_state=dict(
-            #     epoch=trainer.state.epoch,
-            #     iteration=trainer.state.iteration,
-            #     iterations_since_last_rp=trainer.state.
-            #     iterations_since_last_rp),
-        ))
+# save checkpoint
+trainer.add_event_handler(Events.EPOCH_COMPLETED, 
+    checkpointer, {'ckpt': assemble_checkpoint()})
 
 
 if __name__ == "__main__":
