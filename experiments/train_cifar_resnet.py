@@ -1,6 +1,5 @@
 import argparse
 import os
-import logging
 import numpy as np
 from tqdm import tqdm
 from dotenv import load_dotenv
@@ -125,12 +124,6 @@ optimizer = SGD(
 scheduler = LRScheduler(MultiStepLR(
     optimizer, milestones=[200, 300], gamma=0.1
 ))
-# rp_schedule = lambda epoch: max([
-#     100 if epoch >=   0 else 0,
-#     200 if epoch >=  25 else 0,
-#     400 if epoch >=  80 else 0,
-#     800 if epoch >= 140 else 0
-# ])
 print(model)  # print the model description
 print("Parameter count = {}".format(param_count(model)))
 
@@ -148,18 +141,6 @@ evaluator = create_supervised_evaluator(
 
 RunningAverage(alpha=0.9, output_transform=lambda x: x).attach(trainer, 'loss')
 ProgressBar().attach(trainer, ['loss'])
-
-# @trainer.on(Events.STARTED)
-# def init_counter(engine):
-#     engine.state.batches_since_last_rp = 0
-
-# @trainer.on(Events.ITERATION_COMPLETED)
-# def reparameterize(engine):
-#     engine.state.batches_since_last_rp += 1
-#     if engine.state.batches_since_last_rp == rp_schedule(engine.state.epoch):
-#         # print("Reparameterize model at Iteration {}, Epoch {}".format(engine.state.iteration, engine.state.epoch))
-#         model.reparameterize()
-#         engine.state.batches_since_last_rp = 0
 
 trainer.add_event_handler(Events.EPOCH_STARTED, scheduler)
 
@@ -181,25 +162,17 @@ def log_test_results(engine):
         writer.add_scalar('test_loss', loss, engine.state.epoch)
         writer.add_scalar('accuracy', accuracy, engine.state.epoch)
 
-# @trainer.on(Events.EPOCH_COMPLETED)
-# def save_checkpoint(engine):
-#     import ipdb; ipdb.set_trace()
-#     torch.save(dict(
-#         model=model.state_dict,
-#         optimizer=optimizer.state_dict,
-#         scheduler=scheduler,
-#         trainer=trainer
-#     ), CHECKPOINT_PATH + '/cifar_resnet/' + run_name + '.pth')
-trainer.add_event_handler(Events.EPOCH_COMPLETED, checkpointer, dict(
-    data=data,
-    model=model,
-    optimizer=optimizer,
-    scheduler=scheduler,
-    trainer_state=dict(
-        epoch=trainer.state.epoch,
-        iteration=trainer.state.iteration
-    ),
-))
+@trainer.on(Events.EPOCH_COMPLETED)
+def save_checkpoint(engine):
+    checkpointer(engine, dict(
+        model=model,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        trainer_state=dict(
+            epoch=trainer.state.epoch,
+            iteration=trainer.state.iteration
+        ),
+    ))
 
 
 if __name__ == "__main__":
