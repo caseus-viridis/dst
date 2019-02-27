@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="dst",
-    version="0.0.2.dev",
+    version="0.0.3.dev",
     description="Dynamic sparse training tools in PyTorch",
     author="Xin Wang",
     author_email="caseus_viridis@gmail.com",
@@ -16,6 +16,7 @@ setup(
         'numpy',
         'tqdm',
         'python-dotenv',
+        'pytorch-ignite',
         'pytorch-monitor',
         'PTable',
     ),

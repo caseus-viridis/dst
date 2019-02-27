@@ -187,7 +187,7 @@ print(model)  # print the model description
 print("Parameter count = {}".format(param_count(model)))
 
 # Pruning threshold schedule as in Narang et al. 2017a,b
-BATCHES_PER_EPOCH = 798
+BATCHES_PER_EPOCH = len(data.train)
 FREQ = 100
 def get_pruning_threshold(itr,
                           q=args.pct90,
