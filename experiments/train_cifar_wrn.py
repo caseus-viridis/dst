@@ -81,7 +81,7 @@ if args.monitor:
         'random_seed': args.run_id
     })
 
-# checkpoint
+# checkpointer
 checkpointer = ModelCheckpoint(
     dirname=CHECKPOINT_PATH + '/cifar_wrn',
     filename_prefix=run_name,

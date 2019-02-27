@@ -1,5 +1,6 @@
 import argparse
 import os
+from glob import glob
 import numpy as np
 from tqdm import tqdm
 from dotenv import load_dotenv
@@ -91,10 +92,10 @@ if args.monitor:
         'title': "CIFAR10/100 ResNet experiments",
         'run_name': run_name,
         'log_dir': MONITOR_PATH + '/cifar_resnet',
-        'random_seed': args.run_id
+        'random_seed': 1 # args.run_id
     })
 
-# checkpoint
+# checkpointer
 checkpointer = ModelCheckpoint(
     dirname=CHECKPOINT_PATH + '/cifar_resnet',
     filename_prefix=run_name,
@@ -102,6 +103,11 @@ checkpointer = ModelCheckpoint(
     require_empty=False,
     save_as_state_dict=False
 )
+ckpt = glob(CHECKPOINT_PATH + '/cifar_resnet/' + run_name + '*.pth')
+model_ckpt = [cpf for cpf in ckpt if run_name + '_model' in cpf]
+optimizer_ckpt = [cpf for cpf in ckpt if run_name + '_optimizer' in cpf]
+scheduler_ckpt = [cpf for cpf in ckpt if run_name + '_scheduler' in cpf]
+trainer_state_ckpt = [cpf for cpf in ckpt if run_name + '_trainer_state' in cpf]
 
 # data, model, loss, optimizer, lr_scheduler, rp_schedule
 data = eval(args.dataset.upper())(
@@ -110,20 +116,19 @@ data = eval(args.dataset.upper())(
     num_workers=8,
     batch_size=args.batch_size,
     shuffle=True)
-model = eval("cifar_resnet.resnet{:d}".format(args.depth))(
+model = torch.load(*model_ckpt) if model_ckpt else eval("cifar_resnet.resnet{:d}".format(args.depth))(
     num_classes=100 if args.dataset == 'cifar100' else 10,
     spatial_bottleneck=args.spatial_bottleneck,
     density=0.25*args.quarters)
 loss_func = nn.CrossEntropyLoss()
-optimizer = SGD(
+optimizer = torch.load(*optimizer_ckpt) if optimizer_ckpt else SGD(
     model.parameters(),
     lr=1e-1,
     weight_decay=1e-4,
     momentum=0.9,
     nesterov=True)
-scheduler = LRScheduler(MultiStepLR(
-    optimizer, milestones=[200, 300], gamma=0.1
-))
+scheduler = torch.load(*scheduler_ckpt) if scheduler_ckpt else LRScheduler(
+    MultiStepLR(optimizer, milestones=[200, 300], gamma=0.1))
 print(model)  # print the model description
 print("Parameter count = {}".format(param_count(model)))
 
@@ -144,12 +149,15 @@ ProgressBar().attach(trainer, ['loss'])
 
 trainer.add_event_handler(Events.EPOCH_STARTED, scheduler)
 
+@trainer.on(Events.STARTED)
+def resume_state(engine):
+    if trainer_state_ckpt:
+        for k, v in torch.load(*trainer_state_ckpt).items():
+            setattr(trainer.state, k, v)
+    [os.remove(f) for f in ckpt]
+
 @trainer.on(Events.EPOCH_COMPLETED)
 def log_training_loss(engine):
-    print("Epoch {:3d}: train loss = {:.4f}".format(
-        engine.state.epoch,
-        engine.state.metrics['loss']
-    ))
     if args.monitor:
         writer.add_scalar('train_loss', engine.state.metrics['loss'], engine.state.epoch)
 
@@ -157,22 +165,26 @@ def log_training_loss(engine):
 def log_test_results(engine):
     evaluator.run(data.test)
     loss, accuracy = evaluator.state.metrics['loss'], evaluator.state.metrics['accuracy']
-    print("Epoch {:3d}: test loss = {:.4f}, test accuracy = {:.4f}".format(engine.state.epoch, loss, accuracy))
+    print(
+        "Epoch {:3d}: train loss = {:.4f}, test loss = {:.4f}, test accuracy = {:.4f}"
+        .format(engine.state.epoch, engine.state.metrics['loss'], loss, accuracy)
+    )
     if args.monitor:
         writer.add_scalar('test_loss', loss, engine.state.epoch)
         writer.add_scalar('accuracy', accuracy, engine.state.epoch)
 
 @trainer.on(Events.EPOCH_COMPLETED)
 def save_checkpoint(engine):
-    checkpointer(engine, dict(
-        model=model,
-        optimizer=optimizer,
-        scheduler=scheduler,
-        trainer_state=dict(
-            epoch=trainer.state.epoch,
-            iteration=trainer.state.iteration
-        ),
-    ))
+    checkpointer._iteration = trainer.state.epoch-1 # this is hacky, be wary of the cases where checkpoint is not saved once per epoch
+    checkpointer(
+        engine,
+        dict(
+            model=model,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            trainer_state=dict(
+                epoch=trainer.state.epoch, iteration=trainer.state.iteration),
+        ))
 
 
 if __name__ == "__main__":
