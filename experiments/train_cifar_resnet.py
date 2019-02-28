@@ -110,7 +110,6 @@ class assemble_checkpoint:
         return dict(
             model_state_dict=model.state_dict(),
             optimizer_state_dict=optimizer.state_dict(),
-            scheduler=scheduler,
             trainer_state=dict(
                 epoch=trainer.state.epoch,
                 iteration=trainer.state.iteration
@@ -138,8 +137,7 @@ optimizer = SGD(
     weight_decay=1e-4,
     momentum=0.9,
     nesterov=True)
-scheduler = LRScheduler(
-    MultiStepLR(optimizer, milestones=[200, 300], gamma=0.1))
+scheduler = MultiStepLR(optimizer, milestones=[200, 300], gamma=0.1)
 print(model)
 print("Parameter count = {}".format(param_count(model)))
 
@@ -167,7 +165,6 @@ def resume_from_checkpoint(engine):
         _ckpt = torch.load(*ckpt)
         model.load_state_dict(_ckpt['model_state_dict'])
         optimizer.load_state_dict(_ckpt['optimizer_state_dict'])
-        scheduler = _ckpt['scheduler']
         for k, v in _ckpt['trainer_state'].items():
             setattr(trainer.state, k, v)
         for k, v in _ckpt['checkpointer_state'].items():
@@ -175,7 +172,9 @@ def resume_from_checkpoint(engine):
         os.remove(*ckpt)
 
 # LR scheduler
-trainer.add_event_handler(Events.EPOCH_STARTED, scheduler)
+@trainer.on(Events.EPOCH_STARTED)
+def adjust_lr(engine):
+    scheduler.step(engine.state.epoch - 1)
 
 # log training results
 @trainer.on(Events.EPOCH_COMPLETED)
@@ -205,7 +204,7 @@ def print_results(engine):
     )
 
 # save checkpoint
-trainer.add_event_handler(Events.EPOCH_COMPLETED, 
+trainer.add_event_handler(Events.EPOCH_COMPLETED,
     checkpointer, {'ckpt': assemble_checkpoint()})
 
 
