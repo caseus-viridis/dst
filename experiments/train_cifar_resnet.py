@@ -10,7 +10,6 @@ from torch.optim import SGD
 from torch.optim.lr_scheduler import MultiStepLR, LambdaLR
 from data import CIFAR10, CIFAR100
 from dst.models import cifar_resnet
-# from dst.reparameterization import DSModel
 from dst.utils import param_count
 from pytorch_monitor import init_experiment, monitor_module
 from ignite.engine import Engine, Events, create_supervised_trainer, create_supervised_evaluator
@@ -138,8 +137,8 @@ optimizer = SGD(
     momentum=0.9,
     nesterov=True)
 scheduler = MultiStepLR(optimizer, milestones=[200, 300], gamma=0.1)
-print(model)
-print("Parameter count = {}".format(param_count(model)))
+# print(model)
+# print("Parameter count = {}".format(param_count(model)))
 
 # engines
 trainer = create_supervised_trainer(
@@ -169,7 +168,10 @@ def resume_from_checkpoint(engine):
             setattr(trainer.state, k, v)
         for k, v in _ckpt['checkpointer_state'].items():
             setattr(checkpointer, k, v)
-        os.remove(*ckpt)
+        checkpointer._saved = [
+            (checkpointer._iteration, ckpt)
+        ]  # manually mark the checkpoint loaded from as saved
+
 
 # LR scheduler
 @trainer.on(Events.EPOCH_STARTED)

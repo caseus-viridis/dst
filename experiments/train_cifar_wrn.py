@@ -166,7 +166,7 @@ rp_schedule = lambda epoch: max([
     8   if epoch >= 120 else 0,
     1e9 if epoch >= 160 else 0
 ]) * args.period
-print(model)  # print the model description
+# print(model)  # print the model description
 
 # engines
 trainer = create_supervised_trainer(model, optimizer, loss_func, device=device)
@@ -180,13 +180,12 @@ evaluator = create_supervised_evaluator(
 RunningAverage(alpha=0.9, output_transform=lambda x: x).attach(trainer, 'loss')
 ProgressBar().attach(trainer, ['loss'])
 
-
 # resume from checkpoint
 @trainer.on(Events.STARTED)
 def resume_from_checkpoint(engine):
     ckpt = glob('/'.join([CHECKPOINT_PATH, exp_name, run_name]) + '*.pth')
     if ckpt:
-        print("Resuming from checkpoint: {}".format(*ckpt))
+        tqdm.write("Resuming from checkpoint: {}".format(*ckpt))
         _ckpt = torch.load(*ckpt)
         model.load_state_dict(_ckpt['model_state_dict'])
         optimizer.load_state_dict(_ckpt['optimizer_state_dict'])
@@ -205,9 +204,9 @@ def reparameterize(engine):
     if engine.state.iterations_since_last_rp == rp_schedule(
             engine.state.epoch) and args.sparsity > 0.:
         model.reparameterize()
-        tqdm.write("Reparameterized model at Iteration {}, pruning threshold = {:6.4f}".format(engine.state.iteration, model.pruning_threshold))
+        tqdm.write("Reparameterized model at Iteration {}, pruning threshold = {:6.4f}, model sparsity = {:.4f}".format(engine.state.iteration, model.pruning_threshold, model.sparsity))
         # tqdm.write(model.stats_table.get_string())
-        tqdm.write(model.sum_table.get_string())
+        # tqdm.write(model.sum_table.get_string())
         engine.state.iterations_since_last_rp = 0
 
 # LR scheduler
