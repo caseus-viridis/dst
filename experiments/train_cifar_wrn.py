@@ -214,7 +214,7 @@ def reparameterize(engine):
 # LR scheduler
 @trainer.on(Events.EPOCH_STARTED)
 def adjust_lr(engine):
-    scheduler.step(engine.state.epoch)
+    scheduler.step(engine.state.epoch - 1)
 
 # log training results
 @trainer.on(Events.EPOCH_COMPLETED)
