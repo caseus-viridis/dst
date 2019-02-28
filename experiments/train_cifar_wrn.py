@@ -131,7 +131,7 @@ class assemble_checkpoint:
                 iterations_since_last_rp=trainer.state.iterations_since_last_rp
             ),
             checkpointer_state=dict(
-                _iteration=checkpointer._iteration
+                _iteration=checkpointer._iteration,
             )
         )
 
@@ -167,7 +167,6 @@ rp_schedule = lambda epoch: max([
     1e9 if epoch >= 160 else 0
 ]) * args.period
 print(model)  # print the model description
-print(model.sum_table.get_string())
 
 # engines
 trainer = create_supervised_trainer(model, optimizer, loss_func, device=device)
@@ -195,7 +194,7 @@ def resume_from_checkpoint(engine):
             setattr(trainer.state, k, v)
         for k, v in _ckpt['checkpointer_state'].items():
             setattr(checkpointer, k, v)
-        os.remove(*ckpt)
+        checkpointer._saved = [(checkpointer._iteration, ckpt)] # manually mark the checkpoint loaded from as saved
     else:
         engine.state.iterations_since_last_rp = 0
 
