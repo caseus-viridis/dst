@@ -1,5 +1,6 @@
 import argparse
 import os
+from glob import glob
 import numpy as np
 from tqdm import tqdm
 from dotenv import load_dotenv
@@ -124,7 +125,6 @@ class assemble_checkpoint:
         return dict(
             model_state_dict=model.state_dict(),
             optimizer_state_dict=optimizer.state_dict(),
-            scheduler=scheduler,
             trainer_state=dict(
                 epoch=trainer.state.epoch,
                 iteration=trainer.state.iteration,
@@ -158,8 +158,7 @@ optimizer = SGD(
     weight_decay=args.weight_decay,
     momentum=0.9,
     nesterov=True)
-scheduler = LRScheduler(
-    MultiStepLR(optimizer, milestones=[60, 120, 160], gamma=0.2))
+scheduler = MultiStepLR(optimizer, milestones=[60, 120, 160], gamma=0.2)
 rp_schedule = lambda epoch: max([
     1   if epoch >=   0 else 0,
     2   if epoch >=  40 else 0,
@@ -192,7 +191,6 @@ def resume_from_checkpoint(engine):
         _ckpt = torch.load(*ckpt)
         model.load_state_dict(_ckpt['model_state_dict'])
         optimizer.load_state_dict(_ckpt['optimizer_state_dict'])
-        scheduler = _ckpt['scheduler']
         for k, v in _ckpt['trainer_state'].items():
             setattr(trainer.state, k, v)
         for k, v in _ckpt['checkpointer_state'].items():
@@ -214,7 +212,9 @@ def reparameterize(engine):
         engine.state.iterations_since_last_rp = 0
 
 # LR scheduler
-trainer.add_event_handler(Events.EPOCH_STARTED, scheduler)
+@trainer.on(Events.EPOCH_STARTED)
+def adjust_lr(engine):
+    scheduler.step(engine.state.epoch - 1)
 
 # log training results
 @trainer.on(Events.EPOCH_COMPLETED)
@@ -244,7 +244,7 @@ def print_results(engine):
     )
 
 # save checkpoint
-trainer.add_event_handler(Events.EPOCH_COMPLETED, 
+trainer.add_event_handler(Events.EPOCH_COMPLETED,
     checkpointer, {'ckpt': assemble_checkpoint()})
 
 
